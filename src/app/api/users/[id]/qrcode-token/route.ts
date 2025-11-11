@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { findUserById } from '@/lib/db';
+import { findUserById, updateUser } from '@/lib/db';
 import { generateUserToken, requireAuth } from '@/lib/auth';
 
 export async function GET(
@@ -23,6 +23,30 @@ export async function GET(
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
 
-  const token = generateUserToken(user, '12h');
-  return NextResponse.json({ qrcodeToken: token });
+  // Check if user has a valid QR token
+  let qrToken = user.qrToken;
+  const now = new Date();
+  
+  // Generate new token if:
+  // 1. No token exists
+  // 2. Token has expired
+  // 3. Force refresh is requested (optional query param)
+  const forceRefresh = request.nextUrl.searchParams.get('refresh') === 'true';
+  
+  if (!qrToken || !user.qrTokenExpiry || new Date(user.qrTokenExpiry) < now || forceRefresh) {
+    // Generate new token valid for 1 year (since it's for QR code, make it long-lived)
+    qrToken = generateUserToken(user, '365d');
+    
+    // Set expiry to 1 year from now
+    const expiry = new Date();
+    expiry.setFullYear(expiry.getFullYear() + 1);
+    
+    // Update user with new token and expiry
+    updateUser(targetId, {
+      qrToken,
+      qrTokenExpiry: expiry.toISOString(),
+    });
+  }
+
+  return NextResponse.json({ qrcodeToken: qrToken });
 }

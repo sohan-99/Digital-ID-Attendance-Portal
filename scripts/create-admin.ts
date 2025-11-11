@@ -9,7 +9,7 @@ const dbContent = fs.readFileSync(dbPath, 'utf-8');
 const db = JSON.parse(dbContent);
 
 // Admin credentials
-const adminPassword = 'Admin@123';
+const adminPassword = 'Admin@123';Admin@123
 const adminEmail = 'admin@pundra.edu';
 
 // Check if admin already exists

@@ -12,7 +12,9 @@
       "department": "cse",
       "batch": "20",
       "session": "2020",
-      "bloodGroup": "AB-"
+      "bloodGroup": "AB-",
+      "qrToken": null,
+      "qrTokenExpiry": null
     },
     {
       "id": 2,
@@ -26,7 +28,9 @@
       "department": "cse",
       "batch": "20",
       "session": "2020",
-      "bloodGroup": "AB-"
+      "bloodGroup": "AB-",
+      "qrToken": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOjIsImlkIjoyLCJuYW1lIjoiU29oYW51ciBSYWhtYW4iLCJlbWFpbCI6ImFkbWluQGJvb21kZXZzLmNvbSIsImlhdCI6MTc2Mjg1NzU3OCwiZXhwIjoxNzk0MzkzNTc4fQ.78G-EnT_VlUSx0qESkFwjKAPqzXpGYk9FAqQJEzhiaM",
+      "qrTokenExpiry": "2026-11-11T10:39:38.782Z"
     },
     {
       "id": 3,
@@ -40,7 +44,9 @@
       "department": "cse",
       "batch": "20",
       "session": "",
-      "bloodGroup": "B+"
+      "bloodGroup": "B+",
+      "qrToken": null,
+      "qrTokenExpiry": null
     },
     {
       "id": 4,
@@ -54,7 +60,9 @@
       "department": "Administration",
       "batch": "2024",
       "session": "2024",
-      "bloodGroup": "O+"
+      "bloodGroup": "O+",
+      "qrToken": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOjQsImlkIjo0LCJuYW1lIjoiU3VwZXIgQWRtaW4iLCJlbWFpbCI6ImFkbWluQHB1bmRyYS5lZHUiLCJpYXQiOjE3NjI4NTczNDgsImV4cCI6MTc5NDM5MzM0OH0.LJivHcCz-TvOwBfxzCovL7Y_zmrPTKAHKtEOEmokjw4",
+      "qrTokenExpiry": "2026-11-11T10:35:48.143Z"
     }
   ],
   "attendance": [

@@ -16,6 +16,8 @@ interface User {
   batch?: string | null;
   session?: string | null;
   bloodGroup?: string | null;
+  qrToken?: string | null;
+  qrTokenExpiry?: string | null;
 }
 
 interface Attendance {
@@ -45,7 +47,7 @@ function load(): Database {
     ensureDataDir();
     const raw = fs.readFileSync(DB_PATH, 'utf8');
     return JSON.parse(raw);
-  } catch (e) {
+  } catch {
     return { users: [], attendance: [], nextUserId: 1, nextAttendanceId: 1 };
   }
 }
@@ -115,6 +117,8 @@ export function updateUser(
   if (data.batch !== undefined) user.batch = data.batch;
   if (data.session !== undefined) user.session = data.session;
   if (data.bloodGroup !== undefined) user.bloodGroup = data.bloodGroup;
+  if (data.qrToken !== undefined) user.qrToken = data.qrToken;
+  if (data.qrTokenExpiry !== undefined) user.qrTokenExpiry = data.qrTokenExpiry;
   
   db.users[idx] = user;
   save(db);
