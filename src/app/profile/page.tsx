@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import axios from 'axios';
 import QRCodeDisplay from '@/components/QRCodeDisplay';
 import {
@@ -25,6 +25,8 @@ import {
   IconButton,
   Tooltip,
   Container,
+  FormControlLabel,
+  Checkbox,
 } from '@mui/material';
 import {
   Download as DownloadIcon,
@@ -81,6 +83,26 @@ export default function Profile() {
   const [loadingAttendance, setLoadingAttendance] = useState(false);
   const [uploadingPicture, setUploadingPicture] = useState(false);
   const [pictureError, setPictureError] = useState('');
+  const [autoRefresh, setAutoRefresh] = useState(true);
+  const [lastRefresh, setLastRefresh] = useState(new Date());
+
+  const loadAttendance = useCallback(async (userId: number) => {
+    const t = localStorage.getItem('pundra_token');
+    if (!t) return;
+
+    try {
+      setLoadingAttendance(true);
+      const att = await axios.get(`http://localhost:3000/api/attendance?userId=${userId}`, {
+        headers: { Authorization: `Bearer ${t}` },
+      });
+      setAttendance(att.data.rows || []);
+      setLastRefresh(new Date());
+    } catch (e) {
+      console.error('Failed to load attendance:', e);
+    } finally {
+      setLoadingAttendance(false);
+    }
+  }, []);
 
   useEffect(() => {
     const t = localStorage.getItem('pundra_token');
@@ -101,11 +123,8 @@ export default function Profile() {
         });
         setToken(q.data.qrcodeToken);
 
-        setLoadingAttendance(true);
-        const att = await axios.get(`http://localhost:3000/api/attendance?userId=${me.data.user.id}`, {
-          headers: { Authorization: `Bearer ${t}` },
-        });
-        setAttendance(att.data.rows || []);
+        // Load attendance
+        await loadAttendance(me.data.user.id);
       } catch (e: unknown) {
         if (axios.isAxiosError(e)) {
           const data = e.response?.data as { error?: string } | undefined;
@@ -115,11 +134,18 @@ export default function Profile() {
         } else {
           setErr('Failed to load');
         }
-      } finally {
-        setLoadingAttendance(false);
       }
     })();
-  }, []);
+
+    // Set up auto-refresh for attendance (every 10 seconds)
+    const intervalId = setInterval(() => {
+      if (autoRefresh && user) {
+        loadAttendance(user.id);
+      }
+    }, 10000);
+
+    return () => clearInterval(intervalId);
+  }, [autoRefresh, user, loadAttendance]);
 
   async function handleProfilePictureChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -427,9 +453,31 @@ export default function Profile() {
         {/* Attendance History Card */}
         <Card elevation={3}>
           <CardContent sx={{ p: 4 }}>
-            <Typography variant="h5" fontWeight={700} gutterBottom>
-              Attendance History
-            </Typography>
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+              <Typography variant="h5" fontWeight={700}>
+                Attendance History
+              </Typography>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                <FormControlLabel
+                  control={
+                    <Checkbox
+                      checked={autoRefresh}
+                      onChange={(e) => setAutoRefresh(e.target.checked)}
+                      color="primary"
+                      size="small"
+                    />
+                  }
+                  label={
+                    <Typography variant="caption">
+                      Auto-refresh (10s)
+                    </Typography>
+                  }
+                />
+                <Typography variant="caption" color="text.secondary">
+                  Last: {lastRefresh.toLocaleTimeString()}
+                </Typography>
+              </Box>
+            </Box>
             {loadingAttendance ? (
               <Box sx={{ display: 'flex', justifyContent: 'center', p: 4 }}>
                 <CircularProgress />

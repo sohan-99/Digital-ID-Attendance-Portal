@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import axios from 'axios';
 import { Bar, Line } from 'react-chartjs-2';
 import { 
@@ -151,45 +151,10 @@ export default function AdminPage() {
 
   const [successMsg, setSuccessMsg] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
+  const [autoRefresh, setAutoRefresh] = useState(true);
+  const [lastRefresh, setLastRefresh] = useState(new Date());
 
-  useEffect(() => {
-    const token = localStorage.getItem('pundra_token');
-    if (!token) {
-      window.location.href = '/login';
-      return;
-    }
-
-    // Fetch stats
-    axios
-      .get('http://localhost:3000/api/admin/stats', {
-        headers: { Authorization: `Bearer ${token}` },
-      })
-      .then((res) => setStats(res.data))
-      .catch((err) => {
-        console.error(err);
-        setStats({ totalUsers: 0, totalAttendance: 0, error: 'Failed to load stats' });
-      });
-
-    // Fetch users
-    axios
-      .get('http://localhost:3000/api/admin/users', {
-        headers: { Authorization: `Bearer ${token}` },
-      })
-      .then((res) => {
-        // API returns { users: [...] }, so we need to access res.data.users
-        setUsers(Array.isArray(res.data.users) ? res.data.users : []);
-      })
-      .catch((err) => {
-        console.error(err);
-        setUsers([]);
-      });
-
-    // Load chart data
-    loadChartData(7);
-    loadDepartmentData();
-  }, []);
-
-  const loadChartData = (days: number) => {
+  const loadChartData = useCallback((days: number) => {
     const token = localStorage.getItem('pundra_token');
     if (!token) return;
 
@@ -206,9 +171,9 @@ export default function AdminPage() {
         });
       })
       .catch((err) => console.error(err));
-  };
+  }, []);
 
-  const loadDepartmentData = () => {
+  const loadDepartmentData = useCallback(() => {
     const token = localStorage.getItem('pundra_token');
     if (!token) return;
 
@@ -224,7 +189,80 @@ export default function AdminPage() {
         });
       })
       .catch((err) => console.error(err));
-  };
+  }, []);
+
+  const loadDailyAttendance = useCallback(() => {
+    const token = localStorage.getItem('pundra_token');
+    if (!token) return;
+
+    axios
+      .get('http://localhost:3000/api/admin/attendance/daily?days=30', {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      .then((res) => {
+        const data = res.data;
+        if (data.daily) {
+          setDailyMap(data.daily);
+        }
+      })
+      .catch((err) => console.error(err));
+  }, []);
+
+  // Function to refresh all data
+  const refreshAllData = useCallback(() => {
+    const token = localStorage.getItem('pundra_token');
+    if (!token) return;
+
+    // Fetch stats
+    axios
+      .get('http://localhost:3000/api/admin/stats', {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      .then((res) => setStats(res.data))
+      .catch((err) => {
+        console.error(err);
+      });
+
+    // Fetch users
+    axios
+      .get('http://localhost:3000/api/admin/users', {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      .then((res) => {
+        setUsers(Array.isArray(res.data.users) ? res.data.users : []);
+      })
+      .catch((err) => {
+        console.error(err);
+      });
+
+    // Reload chart data
+    loadChartData(chartDays);
+    loadDepartmentData();
+    loadDailyAttendance();
+    
+    setLastRefresh(new Date());
+  }, [chartDays, loadChartData, loadDepartmentData, loadDailyAttendance]);
+
+  useEffect(() => {
+    const token = localStorage.getItem('pundra_token');
+    if (!token) {
+      window.location.href = '/login';
+      return;
+    }
+
+    // Initial data load
+    refreshAllData();
+
+    // Set up auto-refresh interval (every 5 seconds)
+    const intervalId = setInterval(() => {
+      if (autoRefresh) {
+        refreshAllData();
+      }
+    }, 5000);
+
+    // Cleanup interval on unmount
+    return () => clearInterval(intervalId);
+  }, [autoRefresh, refreshAllData]); // Re-run if autoRefresh changes
 
   const createUser = () => {
     const token = localStorage.getItem('pundra_token');
@@ -515,9 +553,33 @@ export default function AdminPage() {
 
   return (
     <Container maxWidth="xl" sx={{ py: 4 }}>
-      <Typography variant="h3" component="h1" gutterBottom fontWeight="bold" color="primary">
-        Admin Dashboard
-      </Typography>
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+        <Typography variant="h3" component="h1" fontWeight="bold" color="primary">
+          Admin Dashboard
+        </Typography>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+          <FormControlLabel
+            control={
+              <Checkbox
+                checked={autoRefresh}
+                onChange={(e) => setAutoRefresh(e.target.checked)}
+                color="primary"
+              />
+            }
+            label="Auto-refresh (5s)"
+          />
+          <Button
+            variant="outlined"
+            size="small"
+            onClick={refreshAllData}
+          >
+            Refresh Now
+          </Button>
+          <Typography variant="caption" color="text.secondary">
+            Last updated: {lastRefresh.toLocaleTimeString()}
+          </Typography>
+        </Box>
+      </Box>
 
       {successMsg && (
         <Alert severity="success" sx={{ mb: 2 }} onClose={() => setSuccessMsg('')}>

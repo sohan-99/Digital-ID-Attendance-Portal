@@ -2,6 +2,30 @@ import { NextRequest, NextResponse } from 'next/server';
 import { allUsers, getAttendance } from '@/lib/db';
 import { requireAdmin } from '@/lib/auth';
 
+interface DepartmentData {
+  department: string;
+  totalStudents: number;
+  attendanceRecords: Array<{
+    id: number;
+    userId: number;
+    location: string | null;
+    scannedAt: string;
+    studentName: string;
+    studentId?: string | null;
+    email: string;
+  }>;
+  students: Array<{
+    id: number;
+    name: string;
+    email: string;
+    studentId?: string | null;
+    program?: string | null;
+    batch?: string | null;
+    session?: string | null;
+    attendanceCount?: number;
+  }>;
+}
+
 export async function GET(request: NextRequest) {
   const authResult = requireAdmin(request);
   if ('error' in authResult) {
@@ -20,7 +44,7 @@ export async function GET(request: NextRequest) {
     : allAttendance;
 
   // Group users by department
-  const departmentMap: Record<string, any> = {};
+  const departmentMap: Record<string, DepartmentData> = {};
   
   allUsersData.forEach((user) => {
     const dept = user.department || 'Unknown';
@@ -62,11 +86,24 @@ export async function GET(request: NextRequest) {
 
   // Calculate attendance count per student
   Object.keys(departmentMap).forEach((dept) => {
-    departmentMap[dept].students = departmentMap[dept].students.map((student: any) => {
+    departmentMap[dept].students = departmentMap[dept].students.map((student) => {
       const attendanceCount = filteredAttendance.filter((r) => r.userId === student.id).length;
       return { ...student, attendanceCount };
     });
   });
 
-  return NextResponse.json({ departments: departmentMap });
+  // Prepare data for chart
+  const labels: string[] = [];
+  const counts: number[] = [];
+
+  Object.entries(departmentMap).forEach(([dept, data]) => {
+    labels.push(dept);
+    counts.push(data.attendanceRecords.length);
+  });
+
+  return NextResponse.json({ 
+    departments: departmentMap,
+    labels,
+    counts 
+  });
 }
