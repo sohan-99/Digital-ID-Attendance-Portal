@@ -130,6 +130,7 @@ export default function RegisterPage() {
                 onChange={handleChange}
                 required
                 fullWidth
+                autoComplete="off"
               />
 
               <TextField
@@ -140,6 +141,7 @@ export default function RegisterPage() {
                 onChange={handleChange}
                 required
                 fullWidth
+                autoComplete="new-password"
                 helperText="Min 6 characters: 1 letter, 1 number, 1 special char (!@#$% etc.)"
               />
 
