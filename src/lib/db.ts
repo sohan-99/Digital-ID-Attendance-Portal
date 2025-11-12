@@ -19,6 +19,7 @@ interface User {
   bloodGroup?: string | null;
   qrToken?: string | null;
   qrTokenExpiry?: string | null;
+  scannerLocation?: 'campus' | 'library' | 'event' | null; // Scanner location for scanner admins
 }
 
 interface Attendance {
@@ -27,6 +28,8 @@ interface Attendance {
   location: string | null;
   scannedAt: string;
   user?: User;
+  scannedBy?: number | null; // Admin who scanned the QR code
+  scannerLocation?: 'campus' | 'library' | 'event' | null; // Which scanner was used
 }
 
 interface Database {
@@ -77,6 +80,7 @@ export function addUser(data: {
   batch?: string | null;
   session?: string | null;
   bloodGroup?: string | null;
+  scannerLocation?: 'campus' | 'library' | 'event' | null;
 }): User {
   const db = load();
   const id = db.nextUserId++;
@@ -101,6 +105,7 @@ export function addUser(data: {
     batch: data.batch || null,
     session: data.session || null,
     bloodGroup: data.bloodGroup || null,
+    scannerLocation: data.scannerLocation || null,
   };
   db.users.push(user);
   save(db);
@@ -134,6 +139,7 @@ export function updateUser(
   if (data.bloodGroup !== undefined) user.bloodGroup = data.bloodGroup;
   if (data.qrToken !== undefined) user.qrToken = data.qrToken;
   if (data.qrTokenExpiry !== undefined) user.qrTokenExpiry = data.qrTokenExpiry;
+  if (data.scannerLocation !== undefined) user.scannerLocation = data.scannerLocation;
   
   db.users[idx] = user;
   save(db);
@@ -167,6 +173,8 @@ export function addAttendance(data: {
   userId: number;
   location?: string | null;
   scannedAt?: Date;
+  scannedBy?: number | null;
+  scannerLocation?: 'campus' | 'library' | 'event' | null;
 }): Attendance {
   const db = load();
   const id = db.nextAttendanceId++;
@@ -175,17 +183,22 @@ export function addAttendance(data: {
     userId: data.userId,
     location: data.location || null,
     scannedAt: (data.scannedAt || new Date()).toISOString(),
+    scannedBy: data.scannedBy || null,
+    scannerLocation: data.scannerLocation || null,
   };
   db.attendance.push(rec);
   save(db);
   return rec;
 }
 
-export function getAttendance(filter?: { userId?: number }): Attendance[] {
+export function getAttendance(filter?: { userId?: number; scannerLocation?: 'campus' | 'library' | 'event' | null }): Attendance[] {
   const db = load();
   let rows = db.attendance.slice().reverse();
   if (filter?.userId) {
     rows = rows.filter((r) => r.userId === filter.userId);
+  }
+  if (filter?.scannerLocation) {
+    rows = rows.filter((r) => r.scannerLocation === filter.scannerLocation);
   }
   // Join user data
   return rows.map((r) => ({

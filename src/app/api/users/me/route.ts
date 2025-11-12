@@ -19,6 +19,7 @@ export async function GET(request: NextRequest) {
       name: user.name,
       email: user.email,
       isAdmin: user.isAdmin,
+      role: user.role,
       profilePicture: user.profilePicture,
       studentId: user.studentId,
       program: user.program,
@@ -26,6 +27,7 @@ export async function GET(request: NextRequest) {
       batch: user.batch,
       session: user.session,
       bloodGroup: user.bloodGroup,
+      scannerLocation: user.scannerLocation,
     },
   });
 }

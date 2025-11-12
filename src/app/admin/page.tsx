@@ -86,6 +86,7 @@ interface User {
   batch?: string;
   session?: string;
   bloodGroup?: string;
+  scannerLocation?: 'campus' | 'library' | 'event' | null;
 }
 
 interface AttendanceRecord {
@@ -94,6 +95,8 @@ interface AttendanceRecord {
   location: string;
   scannedAt: string;
   user?: User;
+  scannerLocation?: 'campus' | 'library' | 'event' | null;
+  scannedBy?: number | null;
 }
 
 export default function AdminPage() {
@@ -660,6 +663,22 @@ export default function AdminPage() {
         </Alert>
       )}
 
+      {/* Scanner Location Banner for Scanner Admins */}
+      {currentUser?.scannerLocation && (
+        <Alert 
+          severity="info" 
+          sx={{ mb: 3 }}
+          icon={<QrCodeIcon />}
+        >
+          <Typography variant="body1" fontWeight="bold">
+            Scanner Location: {currentUser.scannerLocation.toUpperCase()}
+          </Typography>
+          <Typography variant="body2">
+            You are viewing attendance data for the {currentUser.scannerLocation} scanner only.
+          </Typography>
+        </Alert>
+      )}
+
       {/* Stats Cards */}
       <Grid container spacing={3} sx={{ mb: 4 }}>
         <Grid item xs={12} md={6}>
@@ -966,13 +985,14 @@ export default function AdminPage() {
                 <TableCell>Program</TableCell>
                 <TableCell>Department</TableCell>
                 <TableCell>Role</TableCell>
+                <TableCell>Scanner</TableCell>
                 <TableCell>Actions</TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
               {filteredUsers.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={8} align="center" sx={{ py: 4 }}>
+                  <TableCell colSpan={9} align="center" sx={{ py: 4 }}>
                     <Typography variant="body1" color="text.secondary">
                       No users found with the selected role filter.
                     </Typography>
@@ -1077,6 +1097,18 @@ export default function AdminPage() {
                         size="small" 
                       />
                     )}
+                  </TableCell>
+                  <TableCell>
+                    {user.scannerLocation ? (
+                      <Chip 
+                        label={user.scannerLocation.toUpperCase()} 
+                        size="small"
+                        color={
+                          user.scannerLocation === 'campus' ? 'primary' :
+                          user.scannerLocation === 'library' ? 'secondary' : 'success'
+                        }
+                      />
+                    ) : '-'}
                   </TableCell>
                   <TableCell>
                     {editUserId === user.id ? (
@@ -1216,6 +1248,7 @@ export default function AdminPage() {
                       <TableCell>ID</TableCell>
                       <TableCell>User</TableCell>
                       <TableCell>Location</TableCell>
+                      <TableCell>Scanner</TableCell>
                       <TableCell>Time</TableCell>
                     </TableRow>
                   </TableHead>
@@ -1225,6 +1258,18 @@ export default function AdminPage() {
                         <TableCell>{record.id}</TableCell>
                         <TableCell>{record.user?.name || `User ${record.userId}`}</TableCell>
                         <TableCell>{record.location}</TableCell>
+                        <TableCell>
+                          {record.scannerLocation ? (
+                            <Chip 
+                              label={record.scannerLocation.toUpperCase()} 
+                              size="small"
+                              color={
+                                record.scannerLocation === 'campus' ? 'primary' :
+                                record.scannerLocation === 'library' ? 'secondary' : 'success'
+                              }
+                            />
+                          ) : '-'}
+                        </TableCell>
                         <TableCell>{new Date(record.scannedAt).toLocaleTimeString()}</TableCell>
                       </TableRow>
                     ))}

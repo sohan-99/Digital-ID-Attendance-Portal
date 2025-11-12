@@ -7,7 +7,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "seed": "tsx scripts/seed.ts"
+    "seed": "tsx scripts/seed.ts",
+    "seed:scanner-admins": "tsx scripts/create-scanner-admins.ts"
   },
   "dependencies": {
     "@emotion/react": "^11.13.5",
@@ -27,7 +28,8 @@
     "react": "19.2.0",
     "react-chartjs-2": "^5.3.1",
     "react-dom": "19.2.0",
-    "react-qr-code": "^2.0.18"
+    "react-qr-code": "^2.0.18",
+    "tsx": "^4.20.6"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",

@@ -18,6 +18,7 @@ import {
   InputLabel,
   Fade,
   Snackbar,
+  Chip,
 } from '@mui/material';
 import {
   QrCodeScanner as QrIcon,
@@ -44,6 +45,8 @@ export default function Scanner() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
   const [isChecking, setIsChecking] = useState(true);
+  const [scannerLocation, setScannerLocation] = useState<string>('');
+  const [adminName, setAdminName] = useState<string>('');
 
   useEffect(() => {
     const t = localStorage.getItem('pundra_token');
@@ -61,6 +64,10 @@ export default function Scanner() {
         if (res.data.user.isAdmin) {
           setIsAdmin(true);
           setIsAuthenticated(true);
+          setAdminName(res.data.user.name || 'Admin');
+          setScannerLocation(res.data.user.scannerLocation ? 
+            res.data.user.scannerLocation.charAt(0).toUpperCase() + res.data.user.scannerLocation.slice(1) : 
+            'General');
         } else {
           // Regular users cannot access scanner
           window.location.href = '/profile';
@@ -264,11 +271,16 @@ export default function Scanner() {
               <QrIcon sx={{ fontSize: 50, color: 'primary.dark' }} />
             </Box>
             <Typography variant="h4" fontWeight={700} gutterBottom>
-              QR Code Scanner
+              {scannerLocation} Scanner
             </Typography>
-            <Typography variant="body1" color="text.secondary">
+            <Typography variant="body1" color="text.secondary" gutterBottom>
               Scan student QR codes for instant attendance tracking
             </Typography>
+            <Chip 
+              label={`Scanner Admin: ${adminName}`} 
+              color="primary" 
+              sx={{ mt: 2 }}
+            />
           </CardContent>
         </Card>
 

@@ -25,10 +25,16 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'User not found' }, { status: 404 });
     }
 
+    // Get scanner admin info
+    const scannerAdmin = findUserById(authResult.user.id);
+    const scannerLocation = scannerAdmin?.scannerLocation || null;
+
     const attendance = addAttendance({
       userId: user.id,
       location: location || null,
       scannedAt: new Date(),
+      scannedBy: authResult.user.id,
+      scannerLocation: scannerLocation,
     });
 
     return NextResponse.json({
@@ -36,6 +42,7 @@ export async function POST(request: NextRequest) {
       attendanceId: attendance.id,
       user: { id: user.id, name: user.name },
       scannedAt: attendance.scannedAt,
+      scannerLocation: scannerLocation,
     });
   } catch (error) {
     console.error('Scan error:', error);
