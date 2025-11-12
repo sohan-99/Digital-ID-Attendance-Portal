@@ -46,13 +46,6 @@ db.nextUserId++;
 fs.writeFileSync(dbPath, JSON.stringify(db, null, 2));
 
 console.log('✅ Admin user created successfully!');
-console.log('');
-console.log('═══════════════════════════════════════');
-console.log('       ADMIN LOGIN CREDENTIALS');
-console.log('═══════════════════════════════════════');
 console.log('Email:    ', adminEmail);
 console.log('Password: ', adminPassword);
-console.log('═══════════════════════════════════════');
-console.log('');
-console.log('Use these credentials to login at:');
-console.log('http://localhost:3000/admin-login');
+
