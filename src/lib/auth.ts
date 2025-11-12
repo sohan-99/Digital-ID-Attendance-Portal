@@ -89,3 +89,4 @@ export function requireAdmin(request: NextRequest): { user: UserPayload & { isAd
   
   return authResult;
 }
+
