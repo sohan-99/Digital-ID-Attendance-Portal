@@ -317,7 +317,7 @@ export default function NavBar() {
                   </MenuItem>
                 </Menu>
               </>
-            ) : (
+            ) : pathname !== '/login' && pathname !== '/register' && pathname !== '/admin-login' && (
               <Link href="/login" style={{ textDecoration: 'none' }}>
                 <Button variant="contained" color="primary" size="medium">
                   Login

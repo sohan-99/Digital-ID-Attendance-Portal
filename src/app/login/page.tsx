@@ -243,18 +243,13 @@ export default function LoginPage() {
             </Typography>
           </Divider>
 
-          <Stack direction="row" justifyContent="space-between" alignItems="center" flexWrap="wrap" gap={2}>
+          <Box sx={{ textAlign: 'center' }}>
             <Link href="/register" passHref legacyBehavior>
               <MuiLink underline="hover" sx={{ fontSize: '0.95rem' }}>
                 Create new account
               </MuiLink>
             </Link>
-            <Link href="/admin-login" passHref legacyBehavior>
-              <MuiLink underline="hover" color="secondary" sx={{ fontSize: '0.95rem', fontWeight: 500 }}>
-                Admin login
-              </MuiLink>
-            </Link>
-          </Stack>
+          </Box>
         </Paper>
       </Box>
     </Container>
