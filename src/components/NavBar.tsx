@@ -1,7 +1,7 @@
 "use client";
 
 import Link from 'next/link';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo, useRef, useCallback } from 'react';
 import { usePathname } from 'next/navigation';
 import axios from 'axios';
 import { 
@@ -39,132 +39,79 @@ interface User {
 
 export default function NavBar() {
   const pathname = usePathname();
-  const [isClient, setIsClient] = useState(false);
+  const [mounted, setMounted] = useState(false);
+  const isFetchingRef = useRef(false);
+  
+  // Initialize state from localStorage synchronously
   const [user, setUser] = useState<User | null>(() => {
-    // Initialize user from localStorage to prevent flicker
+    if (typeof window === 'undefined') return null;
     try {
-      if (typeof window !== 'undefined') {
-        const raw = localStorage.getItem('pundra_user');
-        if (raw) {
-          return JSON.parse(raw);
-        }
-      }
-    } catch (e) {
-      console.error('Error reading user from localStorage:', e);
+      const raw = localStorage.getItem('pundra_user');
+      return raw ? JSON.parse(raw) : null;
+    } catch {
+      return null;
     }
-    return null;
   });
-  const [profilePicture, setProfilePicture] = useState<string | null>(() => {
-    // Initialize profile picture from localStorage to prevent flicker
-    try {
-      if (typeof window !== 'undefined') {
-        const raw = localStorage.getItem('pundra_user');
-        if (raw) {
-          const userData = JSON.parse(raw);
-          return userData.profilePicture || null;
-        }
-      }
-    } catch (e) {
-      console.error('Error reading profile picture from localStorage:', e);
-    }
-    return null;
-  });
+
   const [anchorElNav, setAnchorElNav] = useState<null | HTMLElement>(null);
   const [anchorElUser, setAnchorElUser] = useState<null | HTMLElement>(null);
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
 
-  const loadUserData = (forceUpdate = false) => {
-    try { 
-      const raw = localStorage.getItem('pundra_user'); 
-      const token = localStorage.getItem('pundra_token');
-      
-      if (raw && token) {
-        const userData = JSON.parse(raw);
-        
-        // Only update state if forcing or user is different
-        if (forceUpdate) {
-          setUser(userData);
-          if (userData.profilePicture) {
-            setProfilePicture(userData.profilePicture);
-          }
-        }
-        
-        // Fetch the latest user data including profile picture (silently update)
-        axios.get('http://localhost:3000/api/users/me', {
-          headers: { Authorization: `Bearer ${token}` }
-        })
-        .then(res => {
-          const updatedUser = res.data.user;
-          setUser(updatedUser);
-          setProfilePicture(updatedUser.profilePicture);
-          // Update localStorage with latest data
-          localStorage.setItem('pundra_user', JSON.stringify(updatedUser));
-        })
-        .catch(err => {
-          console.error('Failed to fetch user data:', err);
-          // Keep the cached user and profile picture on error - don't clear
-        });
-      } else if (!token) {
-        // Only clear user if there's no token
-        setUser(null);
-        setProfilePicture(null);
-      }
-    } catch(e){
-      console.error('Error loading user data:', e);
-    }
-  };
-
-  useEffect(() => {
-    // Mark that we're on the client side
-    setIsClient(true);
+  // Stable function to fetch user data
+  const fetchUserData = useCallback(async () => {
+    if (isFetchingRef.current) return;
     
-    // Don't reload user data on mount since we already initialized from localStorage
-    // Just start the background API refresh
     const token = localStorage.getItem('pundra_token');
-    if (token) {
-      // Silently refresh user data in background
-      axios.get('http://localhost:3000/api/users/me', {
-        headers: { Authorization: `Bearer ${token}` }
-      })
-      .then(res => {
-        const updatedUser = res.data.user;
-        setUser(updatedUser);
-        setProfilePicture(updatedUser.profilePicture);
-        localStorage.setItem('pundra_user', JSON.stringify(updatedUser));
-      })
-      .catch(err => {
-        console.error('Failed to fetch user data:', err);
-      });
+    if (!token) {
+      setUser(null);
+      return;
     }
 
-    // Listen for storage events (login/logout from other tabs)
-    const handleStorageChange = (e: StorageEvent) => {
-      if (e.key === 'pundra_user' || e.key === 'pundra_token') {
-        loadUserData(true);
-      }
-    };
-
-    // Listen for custom login event
-    const handleLoginEvent = () => {
-      loadUserData(true);
-    };
-
-    window.addEventListener('storage', handleStorageChange);
-    window.addEventListener('userLoggedIn', handleLoginEvent);
-
-    return () => {
-      window.removeEventListener('storage', handleStorageChange);
-      window.removeEventListener('userLoggedIn', handleLoginEvent);
-    };
+    isFetchingRef.current = true;
+    try {
+      const res = await axios.get('http://localhost:3000/api/users/me', {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      const updatedUser = res.data.user;
+      setUser(updatedUser);
+      localStorage.setItem('pundra_user', JSON.stringify(updatedUser));
+    } catch (err) {
+      console.error('Failed to fetch user data:', err);
+    } finally {
+      isFetchingRef.current = false;
+    }
   }, []);
 
-  function logout(){
+  // Mount effect - run once
+  useEffect(() => {
+    setMounted(true);
+    fetchUserData();
+
+    // Listen for custom events
+    const handleLoginEvent = () => fetchUserData();
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === 'pundra_user' || e.key === 'pundra_token') {
+        const raw = localStorage.getItem('pundra_user');
+        setUser(raw ? JSON.parse(raw) : null);
+      }
+    };
+
+    window.addEventListener('userLoggedIn', handleLoginEvent);
+    window.addEventListener('storage', handleStorageChange);
+
+    return () => {
+      window.removeEventListener('userLoggedIn', handleLoginEvent);
+      window.removeEventListener('storage', handleStorageChange);
+    };
+  }, [fetchUserData]);
+
+  const logout = useCallback(() => {
     localStorage.removeItem('pundra_token');
     localStorage.removeItem('pundra_user');
     setUser(null);
     window.location.href = '/';
-  }
+  }, []);
 
   const handleOpenNavMenu = (event: React.MouseEvent<HTMLElement>) => {
     setAnchorElNav(event.currentTarget);
@@ -182,12 +129,41 @@ export default function NavBar() {
     setAnchorElUser(null);
   };
 
-  const navItems = [
-    { label: 'Home', href: '/', icon: <HomeIcon /> },
-    ...(user?.isAdmin ? [{ label: 'Scanner', href: '/scanner', icon: <ScannerIcon /> }] : []),
-    { label: 'Profile', href: '/profile', icon: <PersonIcon /> },
-    ...(user?.isAdmin ? [{ label: 'Admin', href: '/admin', icon: <AdminIcon /> }] : []),
-  ];
+  // Memoize navigation items - only recompute when isAdmin changes
+  const navItems = useMemo(() => {
+    const items = [
+      { label: 'Home', href: '/', icon: <HomeIcon key="home-icon" /> },
+      { label: 'Profile', href: '/profile', icon: <PersonIcon key="profile-icon" /> },
+    ];
+    
+    if (user?.isAdmin) {
+      items.splice(1, 0, { label: 'Scanner', href: '/scanner', icon: <ScannerIcon key="scanner-icon" /> });
+      items.push({ label: 'Admin', href: '/admin', icon: <AdminIcon key="admin-icon" /> });
+    }
+    
+    return items;
+  }, [user?.isAdmin]);
+
+  // Don't render dynamic content until mounted
+  if (!mounted) {
+    return (
+      <AppBar position="sticky" color="default" elevation={2} sx={{ bgcolor: 'background.paper' }}>
+        <Container maxWidth="xl">
+          <Toolbar disableGutters>
+            <Box sx={{ display: { xs: 'none', md: 'flex' }, alignItems: 'center', mr: 4 }}>
+              <Link href="/" style={{ textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <Avatar src="/logo.png" alt="Pundra Logo" sx={{ width: 40, height: 40 }} />
+                <Typography variant="h6" noWrap sx={{ fontWeight: 700, color: 'primary.main', letterSpacing: '.5px' }}>
+                  Pundra Portal
+                </Typography>
+              </Link>
+            </Box>
+            <Box sx={{ flexGrow: 1 }} />
+          </Toolbar>
+        </Container>
+      </AppBar>
+    );
+  }
 
   return (
     <AppBar position="sticky" color="default" elevation={2} sx={{ bgcolor: 'background.paper' }}>
@@ -242,7 +218,7 @@ export default function NavBar() {
               }}
             >
               {navItems.map((item) => (
-                <MenuItem key={item.label} onClick={handleCloseNavMenu}>
+                <MenuItem key={item.href} onClick={handleCloseNavMenu}>
                   <Link href={item.href} style={{ textDecoration: 'none', color: 'inherit', display: 'flex', alignItems: 'center', gap: '8px', width: '100%' }}>
                     {item.icon}
                     <Typography textAlign="center">{item.label}</Typography>
@@ -273,13 +249,14 @@ export default function NavBar() {
           {/* Desktop Navigation */}
           <Box sx={{ flexGrow: 1, display: { xs: 'none', md: 'flex' }, gap: 1 }}>
             {navItems.map((item) => (
-              <Link key={item.label} href={item.href} style={{ textDecoration: 'none' }}>
+              <Link key={item.href} href={item.href} style={{ textDecoration: 'none' }}>
                 <Button
                   sx={{ 
-                    color: 'text.secondary',
+                    color: pathname === item.href ? 'primary.main' : 'text.secondary',
                     display: 'flex',
                     alignItems: 'center',
                     gap: 0.5,
+                    bgcolor: pathname === item.href ? 'primary.50' : 'transparent',
                     '&:hover': {
                       color: 'primary.main',
                       bgcolor: 'primary.50',
@@ -318,17 +295,17 @@ export default function NavBar() {
                       }
                     >
                       <Avatar 
-                        src={profilePicture || undefined} 
+                        src={user.profilePicture || undefined} 
                         alt={user.name}
                         sx={{ 
-                          bgcolor: profilePicture ? 'transparent' : 'primary.main',
+                          bgcolor: user.profilePicture ? 'transparent' : 'primary.main',
                           width: 40,
                           height: 40,
                           border: user.isAdmin ? '2px solid' : 'none',
                           borderColor: 'secondary.main',
                         }}
                       >
-                        {!profilePicture && (user.name ? user.name[0].toUpperCase() : 'U')}
+                        {!user.profilePicture && (user.name ? user.name[0].toUpperCase() : 'U')}
                       </Avatar>
                     </Badge>
                   </IconButton>
@@ -351,15 +328,15 @@ export default function NavBar() {
                 >
                   <Box sx={{ px: 2, py: 1, display: 'flex', alignItems: 'center', gap: 2 }}>
                     <Avatar 
-                      src={profilePicture || undefined} 
+                      src={user.profilePicture || undefined} 
                       alt={user.name}
                       sx={{ 
-                        bgcolor: profilePicture ? 'transparent' : 'primary.main',
+                        bgcolor: user.profilePicture ? 'transparent' : 'primary.main',
                         width: 48,
                         height: 48,
                       }}
                     >
-                      {!profilePicture && (user.name ? user.name[0].toUpperCase() : 'U')}
+                      {!user.profilePicture && (user.name ? user.name[0].toUpperCase() : 'U')}
                     </Avatar>
                     <Box>
                       <Typography fontWeight="600" sx={{ lineHeight: 1.2 }}>
@@ -390,8 +367,7 @@ export default function NavBar() {
                 </Menu>
               </>
             ) : (
-              // Don't show login button on auth pages or before client hydration
-              isClient && pathname !== '/login' && pathname !== '/register' && pathname !== '/admin-login' && (
+              pathname !== '/login' && pathname !== '/register' && pathname !== '/admin-login' && (
                 <Link href="/login" style={{ textDecoration: 'none' }}>
                   <Button variant="contained" color="primary" size="medium">
                     Login
