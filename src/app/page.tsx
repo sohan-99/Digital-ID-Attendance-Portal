@@ -40,7 +40,9 @@ export default function Home(){
     try{ 
       const raw = localStorage.getItem('pundra_user'); 
       if(raw) setUser(JSON.parse(raw)) 
-    }catch(e){}
+    }catch{
+      // Ignore parsing errors
+    }
   }, [])
 
   const features = [
