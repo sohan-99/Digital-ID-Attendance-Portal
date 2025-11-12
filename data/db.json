@@ -51,18 +51,65 @@
   ],
   "attendance": [
     {
-      "id": 1,
-      "userId": 4,
+      "id": 97,
+      "userId": 8,
       "location": "Camera/Scanner",
-      "scannedAt": "2025-11-11T09:53:32.337Z"
+      "scannedAt": "2025-11-12T21:28:35.290Z",
+      "scannedBy": null,
+      "scannerLocation": null
     },
     {
-      "id": 96,
-      "userId": 5,
+      "id": 98,
+      "userId": 8,
       "location": "Camera/Scanner",
-      "scannedAt": "2025-11-12T19:45:05.893Z"
+      "scannedAt": "2025-11-12T21:30:44.422Z",
+      "scannedBy": null,
+      "scannerLocation": null
+    },
+    {
+      "id": 99,
+      "userId": 8,
+      "location": "Library",
+      "scannedAt": "2025-11-12T21:52:42.391Z",
+      "scannedBy": 2,
+      "scannerLocation": "Library"
+    },
+    {
+      "id": 100,
+      "userId": 8,
+      "location": "Campus",
+      "scannedAt": "2025-11-12T21:57:33.394Z",
+      "scannedBy": 1,
+      "scannerLocation": "Campus"
     }
   ],
   "nextUserId": 9,
-  "nextAttendanceId": 97
+  "nextAttendanceId": 101,
+  "scannerAdmins": [
+    {
+      "id": 1,
+      "username": "campus_scanner",
+      "passwordHash": "$2b$10$MovUdhFRoRX2M/V1bVd4t.28GGUmraGOVYRmfgHk9Mq1sc.9oQaUe",
+      "location": "Campus",
+      "name": "Campus Scanner Admin",
+      "createdAt": "2025-11-12T21:20:20.386Z"
+    },
+    {
+      "id": 2,
+      "username": "library_scanner",
+      "passwordHash": "$2b$10$.wiYCp2o.ao5VeA6gCZrIOMxYFtC71lk8if0982T14qgiKc/Vprqy",
+      "location": "Library",
+      "name": "Library Scanner Admin",
+      "createdAt": "2025-11-12T21:20:20.501Z"
+    },
+    {
+      "id": 3,
+      "username": "event_scanner",
+      "passwordHash": "$2b$10$JffNlGg4ZB2B8uzOYIsT0ey8K2jIiF9OYZYEAsilyt8/3mkvrU3Ki",
+      "location": "Event",
+      "name": "Event Scanner Admin",
+      "createdAt": "2025-11-12T21:20:20.618Z"
+    }
+  ],
+  "nextScannerAdminId": 4
 }

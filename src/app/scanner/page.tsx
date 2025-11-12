@@ -29,15 +29,23 @@ import {
   CameraAlt as CameraIcon,
 } from '@mui/icons-material';
 
+// Scanner locations configuration
+const scannerLocations = [
+  { value: 'Campus', label: '🏫 Campus', color: '#1976d2' },
+  { value: 'Library', label: '📚 Library', color: '#2e7d32' },
+  { value: 'Event', label: '🎉 Event', color: '#ed6c02' },
+];
 
 export default function Scanner() {
   const [msg, setMsg] = useState('');
   const [running, setRunning] = useState(false);
   const [cameras, setCameras] = useState<MediaDeviceInfo[]>([]);
   const [selectedCamera, setSelectedCamera] = useState('');
+  const [selectedLocation, setSelectedLocation] = useState('Campus'); // Default to Campus
   const [loading, setLoading] = useState(true);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [scannerToken, setScannerToken] = useState<string | null>(null);
 
   const [toast, setToast] = useState({ 
     visible: false, 
@@ -51,10 +59,32 @@ export default function Scanner() {
   const rafRef = useRef<number | null>(null);
   const toastTimerRef = useRef<NodeJS.Timeout | null>(null);
   const cooldownRef = useRef(false);
+  const lastScanRef = useRef<string | null>(null);
+  const scanAttemptRef = useRef<number>(0);
 
 
   // Authentication check
   useEffect(() => {
+    // First check if scanner admin is logged in
+    const scannerTokenValue = localStorage.getItem('scanner_token');
+    const scannerAdminStr = localStorage.getItem('scanner_admin');
+    
+    if (scannerTokenValue && scannerAdminStr) {
+      try {
+        const scannerAdmin = JSON.parse(scannerAdminStr);
+        // Auto-select location based on scanner admin
+        setSelectedLocation(scannerAdmin.location || 'Campus');
+        setScannerToken(scannerTokenValue);
+        setIsAuthenticated(true);
+        setIsAdmin(true);
+        setLoading(false);
+        return;
+      } catch (e) {
+        console.error('Error parsing scanner admin data:', e);
+      }
+    }
+
+    // Fallback to regular admin check
     const token = localStorage.getItem('pundra_token');
     if (!token) {
       window.location.href = '/login';
@@ -116,13 +146,15 @@ export default function Scanner() {
         video: deviceId
           ? { 
               deviceId: { exact: deviceId }, 
-              width: { ideal: 1280 }, 
-              height: { ideal: 720 } 
+              width: { ideal: 640 }, // Reduced from 1280 for faster processing
+              height: { ideal: 480 }, // Reduced from 720 for faster processing
+              frameRate: { ideal: 30 } // Optimize frame rate
             }
           : { 
               facingMode: 'environment', 
-              width: { ideal: 1280 }, 
-              height: { ideal: 720 } 
+              width: { ideal: 640 }, 
+              height: { ideal: 480 },
+              frameRate: { ideal: 30 }
             },
       };
 
@@ -171,6 +203,9 @@ export default function Scanner() {
     const jsqrModule = await import('jsqr');
     const jsQR = jsqrModule.default || jsqrModule;
 
+    let frameCount = 0;
+    const scanInterval = 3; // Scan every 3rd frame to reduce processing overhead
+
     const scanFrame = () => {
       try {
         const video = videoRef.current;
@@ -181,9 +216,16 @@ export default function Scanner() {
           return;
         }
 
+        // Skip frames to reduce processing overhead
+        frameCount++;
+        if (frameCount % scanInterval !== 0) {
+          rafRef.current = requestAnimationFrame(scanFrame);
+          return;
+        }
+
         const width = (canvas.width = video.videoWidth);
         const height = (canvas.height = video.videoHeight);
-        const ctx = canvas.getContext('2d');
+        const ctx = canvas.getContext('2d', { willReadFrequently: true }); // Optimize context
 
         if (!ctx) {
           rafRef.current = requestAnimationFrame(scanFrame);
@@ -191,11 +233,24 @@ export default function Scanner() {
         }
 
         ctx.drawImage(video, 0, 0, width, height);
-        const imageData = ctx.getImageData(0, 0, width, height);
-        const qrCode = jsQR(imageData.data, width, height);
+        
+        // Scan only center region for faster processing
+        const centerSize = Math.min(width, height) * 0.6;
+        const x = (width - centerSize) / 2;
+        const y = (height - centerSize) / 2;
+        
+        const imageData = ctx.getImageData(x, y, centerSize, centerSize);
+        const qrCode = jsQR(imageData.data, centerSize, centerSize, {
+          inversionAttempts: 'dontInvert', // Skip inversion for faster scanning
+        });
 
         if (qrCode && !cooldownRef.current) {
-          handleQRCodeDetected(qrCode.data);
+          // Prevent duplicate scans of the same QR code
+          if (lastScanRef.current !== qrCode.data) {
+            lastScanRef.current = qrCode.data;
+            scanAttemptRef.current = 0;
+            handleQRCodeDetected(qrCode.data);
+          }
         }
       } catch (e) {
         console.debug('Scan loop error', e);
@@ -210,21 +265,39 @@ export default function Scanner() {
 
   async function handleQRCodeDetected(qrData: string) {
     cooldownRef.current = true;
-    setMsg('QR Code detected - Verifying...');
+    setMsg('✓ QR Code detected - Verifying...');
 
-    const token = localStorage.getItem('pundra_token');
+    // Use scanner token if available, otherwise use regular token
+    const token = scannerToken || localStorage.getItem('pundra_token');
 
     try {
-      await axios.post(
-        'http://localhost:3000/api/attendance/scan',
-        { token: qrData, location: 'Camera/Scanner' },
-        { headers: { Authorization: `Bearer ${token}` } }
+      // Use scanner API if scanner token is available, otherwise use regular attendance API
+      const apiUrl = scannerToken 
+        ? '/api/scanner/scan'
+        : '/api/attendance/scan';
+
+      const payload = scannerToken
+        ? { qrcodeToken: qrData } // Scanner API expects qrcodeToken
+        : { token: qrData, location: selectedLocation }; // Regular API expects token and location
+
+      const response = await axios.post(
+        apiUrl,
+        payload,
+        { 
+          headers: { Authorization: `Bearer ${token}` },
+          timeout: 5000 // 5 second timeout for faster failure
+        }
       );
 
-      setMsg('Attendance recorded successfully!');
-      showToast('✓ Attendance recorded successfully!', 'success', true);
+      const userName = response.data?.user?.name || 'Student';
+      setMsg(`✓ Success! ${userName} checked in`);
+      showToast(`✓ ${userName} checked in at ${selectedLocation}!`, 'success', true);
       
-      setTimeout(() => stopScanning(), 1500);
+      // Reset for next scan after shorter delay
+      setTimeout(() => {
+        lastScanRef.current = null;
+        setMsg('Ready for next scan');
+      }, 1200);
     } catch (e: unknown) {
       console.error('Verification error', e);
 
@@ -237,13 +310,16 @@ export default function Scanner() {
         errorMessage = e.message || errorMessage;
       }
 
-      setMsg(errorMessage);
+      setMsg(`✗ ${errorMessage}`);
       showToast(errorMessage, 'error');
+      
+      // Reset for retry
+      lastScanRef.current = null;
     } finally {
       setTimeout(() => {
         cooldownRef.current = false;
         if (running) setMsg('Ready for next scan');
-      }, 2000);
+      }, 1500); // Reduced from 2000ms
     }
   }
 
@@ -333,19 +409,20 @@ export default function Scanner() {
                 width: 80,
                 height: 80,
                 borderRadius: '50%',
-                bgcolor: 'primary.light',
+                bgcolor: scannerLocations.find(loc => loc.value === selectedLocation)?.color || 'primary.light',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
                 margin: '0 auto',
                 mb: 2,
+                transition: 'background-color 0.3s ease',
               }}
             >
-              <QrIcon sx={{ fontSize: 50, color: 'primary.dark' }} />
+              <QrIcon sx={{ fontSize: 50, color: 'white' }} />
             </Box>
 
             <Typography variant="h4" fontWeight={700} gutterBottom>
-              QR Code Scanner
+              {scannerLocations.find(loc => loc.value === selectedLocation)?.label || '📍'} QR Code Scanner
             </Typography>
 
             <Typography variant="body1" color="text.secondary">
@@ -360,6 +437,39 @@ export default function Scanner() {
           <CardContent sx={{ p: 4 }}>
             <Stack spacing={3}>
               
+              {/* Location Selection */}
+              <FormControl fullWidth>
+                <InputLabel id="location-select-label">Scanner Location</InputLabel>
+                <Select
+                  labelId="location-select-label"
+                  value={selectedLocation}
+                  label="Scanner Location"
+                  onChange={(e) => setSelectedLocation(e.target.value)}
+                  disabled={running}
+                  startAdornment={
+                    <Box sx={{ display: 'flex', alignItems: 'center', mr: 1 }}>
+                      {scannerLocations.find(loc => loc.value === selectedLocation)?.label.split(' ')[0] || '📍'}
+                    </Box>
+                  }
+                >
+                  {scannerLocations.map((location) => (
+                    <MenuItem key={location.value} value={location.value}>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                        <Box
+                          sx={{
+                            width: 12,
+                            height: 12,
+                            borderRadius: '50%',
+                            bgcolor: location.color,
+                          }}
+                        />
+                        {location.label}
+                      </Box>
+                    </MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+
               {/* Camera Selection */}
               <FormControl fullWidth>
                 <InputLabel id="camera-select-label">Select Camera</InputLabel>
@@ -441,6 +551,28 @@ export default function Scanner() {
                   </Alert>
                 </Fade>
               )}
+
+              {/* Location Status */}
+              <Alert 
+                severity="info" 
+                icon={
+                  <Box sx={{ fontSize: '1.2rem' }}>
+                    {scannerLocations.find(loc => loc.value === selectedLocation)?.label.split(' ')[0] || '📍'}
+                  </Box>
+                }
+                sx={{ 
+                  borderRadius: 2,
+                  borderLeft: `4px solid ${scannerLocations.find(loc => loc.value === selectedLocation)?.color}`,
+                }}
+              >
+                <Typography variant="body2">
+                  <strong>Active Location:</strong> {selectedLocation}
+                  {scannerToken && ' (Scanner Admin Mode)'}
+                </Typography>
+                <Typography variant="caption" color="text.secondary">
+                  All scans will be recorded at this location
+                </Typography>
+              </Alert>
 
             </Stack>
           </CardContent>

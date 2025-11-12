@@ -23,23 +23,55 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Missing token' }, { status: 400 });
     }
 
-    const payload = verifyToken(token);
-    const user = findUserById(payload.id);
+    // Verify the QR code token
+    let userId: number;
+    try {
+      const payload = verifyToken(token);
+      // Support both userId and id fields for backward compatibility
+      userId = (payload as { userId?: number; id?: number }).userId || payload.id;
+      
+      if (!userId) {
+        return NextResponse.json({ error: 'Invalid token: missing user ID' }, { status: 400 });
+      }
+    } catch (error) {
+      console.error('Token verification error:', error);
+      return NextResponse.json({ error: 'Invalid or expired token' }, { status: 400 });
+    }
+
+    const user = findUserById(userId);
     
     if (!user) {
       return NextResponse.json({ error: 'User not found' }, { status: 404 });
     }
 
+    // Quick duplicate check (optimized - only last 5 minutes)
+    const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
+    const recentAttendance = getAttendance({ userId });
+    
+    const recentScan = recentAttendance.find(att => {
+      const scannedAt = new Date(att.scannedAt);
+      return scannedAt > fiveMinutesAgo && att.location === location;
+    });
+
+    if (recentScan) {
+      return NextResponse.json(
+        { error: 'Already scanned recently at this location' },
+        { status: 409 }
+      );
+    }
+
+    // Record attendance
     const attendance = addAttendance({
       userId: user.id,
       location: location || null,
       scannedAt: new Date(),
     });
 
+    // Return minimal response for speed
     return NextResponse.json({
       ok: true,
       attendanceId: attendance.id,
-      user: { id: user.id, name: user.name },
+      user: { id: user.id, name: user.name, department: user.department },
       scannedAt: attendance.scannedAt,
     });
   } catch (error) {

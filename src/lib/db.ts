@@ -20,18 +20,31 @@ interface User {
   qrTokenExpiry?: string | null;
 }
 
+interface ScannerAdmin {
+  id: number;
+  username: string;
+  passwordHash: string;
+  location: 'Campus' | 'Library' | 'Event';
+  name: string;
+  createdAt: string;
+}
+
 interface Attendance {
   id: number;
   userId: number;
   location: string | null;
   scannedAt: string;
+  scannedBy?: number | null; // Scanner admin ID
+  scannerLocation?: string | null; // Location where scan occurred
   user?: User;
 }
 
 interface Database {
   users: User[];
+  scannerAdmins: ScannerAdmin[];
   attendance: Attendance[];
   nextUserId: number;
+  nextScannerAdminId: number;
   nextAttendanceId: number;
 }
 
@@ -46,9 +59,24 @@ function load(): Database {
   try {
     ensureDataDir();
     const raw = fs.readFileSync(DB_PATH, 'utf8');
-    return JSON.parse(raw);
+    const data = JSON.parse(raw);
+    // Ensure scannerAdmins array exists for backward compatibility
+    if (!data.scannerAdmins) {
+      data.scannerAdmins = [];
+    }
+    if (!data.nextScannerAdminId) {
+      data.nextScannerAdminId = 1;
+    }
+    return data;
   } catch {
-    return { users: [], attendance: [], nextUserId: 1, nextAttendanceId: 1 };
+    return { 
+      users: [], 
+      scannerAdmins: [],
+      attendance: [], 
+      nextUserId: 1, 
+      nextScannerAdminId: 1,
+      nextAttendanceId: 1 
+    };
   }
 }
 
@@ -152,6 +180,8 @@ export function addAttendance(data: {
   userId: number;
   location?: string | null;
   scannedAt?: Date;
+  scannedBy?: number | null;
+  scannerLocation?: string | null;
 }): Attendance {
   const db = load();
   const id = db.nextAttendanceId++;
@@ -160,6 +190,8 @@ export function addAttendance(data: {
     userId: data.userId,
     location: data.location || null,
     scannedAt: (data.scannedAt || new Date()).toISOString(),
+    scannedBy: data.scannedBy || null,
+    scannerLocation: data.scannerLocation || null,
   };
   db.attendance.push(rec);
   save(db);
@@ -205,3 +237,74 @@ export function recentCounts(days = 7): Array<{ day: string; cnt: number }> {
   
   return Object.keys(map).map((day) => ({ day, cnt: map[day] }));
 }
+
+// Scanner Admin functions
+export function addScannerAdmin(data: {
+  username: string;
+  passwordHash: string;
+  location: 'Campus' | 'Library' | 'Event';
+  name: string;
+}): ScannerAdmin {
+  const db = load();
+  const id = db.nextScannerAdminId++;
+  const scannerAdmin: ScannerAdmin = {
+    id,
+    username: data.username,
+    passwordHash: data.passwordHash,
+    location: data.location,
+    name: data.name,
+    createdAt: new Date().toISOString(),
+  };
+  db.scannerAdmins.push(scannerAdmin);
+  save(db);
+  return scannerAdmin;
+}
+
+export function findScannerAdminByUsername(username: string): ScannerAdmin | undefined {
+  const db = load();
+  return db.scannerAdmins.find((s) => s.username === username);
+}
+
+export function findScannerAdminById(id: number): ScannerAdmin | undefined {
+  const db = load();
+  return db.scannerAdmins.find((s) => s.id === id);
+}
+
+export function allScannerAdmins(): ScannerAdmin[] {
+  return load().scannerAdmins;
+}
+
+export function getAttendanceByLocation(location: string): Attendance[] {
+  const db = load();
+  const rows = db.attendance
+    .filter((r) => r.scannerLocation === location)
+    .slice()
+    .reverse();
+  
+  // Join user data
+  return rows.map((r) => ({
+    ...r,
+    user: db.users.find((u) => u.id === r.userId),
+  }));
+}
+
+export function getTodayAttendanceByLocation(location: string): Attendance[] {
+  const db = load();
+  const today = new Date().toISOString().slice(0, 10);
+  
+  const rows = db.attendance
+    .filter((r) => {
+      const recordDate = r.scannedAt.slice(0, 10);
+      return r.scannerLocation === location && recordDate === today;
+    })
+    .slice()
+    .reverse();
+  
+  // Join user data
+  return rows.map((r) => ({
+    ...r,
+    user: db.users.find((u) => u.id === r.userId),
+  }));
+}
+
+export type { User, ScannerAdmin, Attendance, Database };
