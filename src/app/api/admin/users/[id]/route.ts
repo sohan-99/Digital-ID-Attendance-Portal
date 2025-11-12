@@ -16,7 +16,7 @@ export async function PUT(
 
   try {
     const body = await request.json();
-    const { name, email, password, isAdmin, studentId, program, department, batch, session, bloodGroup } = body;
+    const { name, email, password, isAdmin, role, studentId, program, department, batch, session, bloodGroup } = body;
 
     const existing = findUserById(id);
     if (!existing) {
@@ -24,7 +24,10 @@ export async function PUT(
     }
 
     // Protect super admin from being edited by other admins
-    if (existing.email === SUPER_ADMIN_EMAIL && authResult.user.email !== SUPER_ADMIN_EMAIL) {
+    const existingRole = existing.role || (existing.email === SUPER_ADMIN_EMAIL ? 'super_admin' : existing.isAdmin ? 'admin' : 'user');
+    const currentUserRole = authResult.user.role || (authResult.user.email === SUPER_ADMIN_EMAIL ? 'super_admin' : authResult.user.isAdmin ? 'admin' : 'user');
+    
+    if (existingRole === 'super_admin' && currentUserRole !== 'super_admin') {
       return NextResponse.json({ error: 'Forbidden: cannot modify the super admin' }, { status: 403 });
     }
 
@@ -48,6 +51,7 @@ export async function PUT(
       email,
       passwordHash,
       isAdmin,
+      role: role || 'user',
       studentId,
       program,
       department,
@@ -62,6 +66,7 @@ export async function PUT(
         name: updated!.name,
         email: updated!.email,
         isAdmin: updated!.isAdmin,
+        role: updated!.role,
         studentId: updated!.studentId,
         program: updated!.program,
         department: updated!.department,

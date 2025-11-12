@@ -11,6 +11,7 @@ export interface UserPayload {
   name: string;
   email: string;
   isAdmin?: boolean;
+  role?: 'super_admin' | 'admin' | 'user';
 }
 
 export function generateUserToken(user: UserPayload, expiresIn: string = '6h'): string {
@@ -40,10 +41,10 @@ export function verifyToken(token: string): UserPayload {
 }
 
 export interface AuthRequest extends NextRequest {
-  user?: UserPayload & { isAdmin: boolean };
+  user?: UserPayload & { isAdmin: boolean; role: 'super_admin' | 'admin' | 'user' };
 }
 
-export function getAuthUser(request: NextRequest): (UserPayload & { isAdmin: boolean }) | null {
+export function getAuthUser(request: NextRequest): (UserPayload & { isAdmin: boolean; role: 'super_admin' | 'admin' | 'user' }) | null {
   const auth = request.headers.get('authorization');
   if (!auth) {
     console.log('[Auth] No authorization header');
@@ -64,14 +65,23 @@ export function getAuthUser(request: NextRequest): (UserPayload & { isAdmin: boo
       console.log('[Auth] User not found for id:', payload.id);
       return null;
     }
-    return { ...payload, isAdmin: user.isAdmin };
+    // Determine role
+    let role: 'super_admin' | 'admin' | 'user' = 'user';
+    if (user.role) {
+      role = user.role;
+    } else if (user.email === SUPER_ADMIN_EMAIL) {
+      role = 'super_admin';
+    } else if (user.isAdmin) {
+      role = 'admin';
+    }
+    return { ...payload, isAdmin: user.isAdmin, role };
   } catch (error) {
     console.error('[Auth] Token verification failed:', error instanceof Error ? error.message : error);
     return null;
   }
 }
 
-export function requireAuth(request: NextRequest): { user: UserPayload & { isAdmin: boolean } } | { error: string; status: number } {
+export function requireAuth(request: NextRequest): { user: UserPayload & { isAdmin: boolean; role: 'super_admin' | 'admin' | 'user' } } | { error: string; status: number } {
   const user = getAuthUser(request);
   if (!user) {
     return { error: 'Unauthorized', status: 401 };
@@ -79,7 +89,7 @@ export function requireAuth(request: NextRequest): { user: UserPayload & { isAdm
   return { user };
 }
 
-export function requireAdmin(request: NextRequest): { user: UserPayload & { isAdmin: boolean } } | { error: string; status: number } {
+export function requireAdmin(request: NextRequest): { user: UserPayload & { isAdmin: boolean; role: 'super_admin' | 'admin' | 'user' } } | { error: string; status: number } {
   const authResult = requireAuth(request);
   if ('error' in authResult) return authResult;
   

@@ -34,6 +34,7 @@ interface User {
   name?: string;
   email?: string;
   isAdmin?: boolean;
+  role?: 'super_admin' | 'admin' | 'user';
   profilePicture?: string;
 }
 
@@ -90,6 +91,13 @@ export default function NavBar() {
 
     // Listen for custom events
     const handleLoginEvent = () => fetchUserData();
+    const handleProfileUpdate = () => {
+      // Update user from localStorage when profile is updated
+      const raw = localStorage.getItem('pundra_user');
+      if (raw) {
+        setUser(JSON.parse(raw));
+      }
+    };
     const handleStorageChange = (e: StorageEvent) => {
       if (e.key === 'pundra_user' || e.key === 'pundra_token') {
         const raw = localStorage.getItem('pundra_user');
@@ -98,10 +106,12 @@ export default function NavBar() {
     };
 
     window.addEventListener('userLoggedIn', handleLoginEvent);
+    window.addEventListener('userProfileUpdated', handleProfileUpdate);
     window.addEventListener('storage', handleStorageChange);
 
     return () => {
       window.removeEventListener('userLoggedIn', handleLoginEvent);
+      window.removeEventListener('userProfileUpdated', handleProfileUpdate);
       window.removeEventListener('storage', handleStorageChange);
     };
   }, [fetchUserData]);
@@ -290,12 +300,12 @@ export default function NavBar() {
                       overlap="circular"
                       anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
                       badgeContent={
-                        user.isAdmin ? (
+                        user.isAdmin || user.role === 'admin' || user.role === 'super_admin' ? (
                           <AdminIcon 
                             sx={{ 
                               width: 16, 
                               height: 16, 
-                              bgcolor: 'secondary.main', 
+                              bgcolor: user.role === 'super_admin' ? 'error.main' : 'secondary.main', 
                               borderRadius: '50%',
                               p: 0.3,
                               color: 'white',
@@ -311,8 +321,8 @@ export default function NavBar() {
                           bgcolor: user.profilePicture ? 'transparent' : 'primary.main',
                           width: 40,
                           height: 40,
-                          border: user.isAdmin ? '2px solid' : 'none',
-                          borderColor: 'secondary.main',
+                          border: (user.isAdmin || user.role === 'admin' || user.role === 'super_admin') ? '2px solid' : 'none',
+                          borderColor: user.role === 'super_admin' ? 'error.main' : 'secondary.main',
                         }}
                       >
                         {!user.profilePicture && (user.name ? user.name[0].toUpperCase() : 'U')}
@@ -352,10 +362,14 @@ export default function NavBar() {
                       <Typography fontWeight="600" sx={{ lineHeight: 1.2 }}>
                         {user.name || user.email}
                       </Typography>
-                      {user.isAdmin && (
-                        <Typography variant="caption" color="secondary.main" sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mt: 0.5 }}>
+                      {(user.isAdmin || user.role === 'admin' || user.role === 'super_admin') && (
+                        <Typography 
+                          variant="caption" 
+                          color={user.role === 'super_admin' ? 'error.main' : 'secondary.main'} 
+                          sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mt: 0.5 }}
+                        >
                           <AdminIcon sx={{ fontSize: 14 }} />
-                          Administrator
+                          {user.role === 'super_admin' ? 'Super Administrator' : 'Administrator'}
                         </Typography>
                       )}
                     </Box>

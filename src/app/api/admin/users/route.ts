@@ -13,6 +13,7 @@ export async function GET(request: NextRequest) {
     name: u.name,
     email: u.email,
     isAdmin: u.isAdmin,
+    role: u.role,
     studentId: u.studentId,
     program: u.program,
     department: u.department,
@@ -32,7 +33,7 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json();
-    const { name, email, password, isAdmin, studentId, program, department, batch, session, bloodGroup } = body;
+    const { name, email, password, isAdmin, role, studentId, program, department, batch, session, bloodGroup } = body;
 
     if (!name || !email || !password) {
       return NextResponse.json({ error: 'Missing fields' }, { status: 400 });
@@ -55,6 +56,7 @@ export async function POST(request: NextRequest) {
       email,
       passwordHash,
       isAdmin: !!isAdmin,
+      role: role || 'user',
       studentId,
       program,
       department,
@@ -69,6 +71,7 @@ export async function POST(request: NextRequest) {
         name: user.name,
         email: user.email,
         isAdmin: user.isAdmin,
+        role: user.role,
         studentId: user.studentId,
         program: user.program,
         department: user.department,

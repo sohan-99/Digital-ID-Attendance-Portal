@@ -63,6 +63,7 @@ interface User {
   name: string;
   email: string;
   isAdmin: boolean;
+  role?: 'super_admin' | 'admin' | 'user';
   profilePicture?: string;
   studentId?: string;
   program?: string;
@@ -172,6 +173,9 @@ export default function Profile() {
           setUser(res.data.user);
           const storedUser = JSON.parse(localStorage.getItem('pundra_user') || '{}');
           localStorage.setItem('pundra_user', JSON.stringify({ ...storedUser, profilePicture: dataUrl }));
+          
+          // Dispatch custom event to notify NavBar about profile picture update
+          window.dispatchEvent(new Event('userProfileUpdated'));
         } catch (e: unknown) {
           console.error('Upload error:', e);
           if (axios.isAxiosError(e)) {
@@ -233,6 +237,10 @@ export default function Profile() {
       
       setUser(res.data.user);
       localStorage.setItem('pundra_user', JSON.stringify(res.data.user));
+      
+      // Dispatch custom event to notify NavBar about profile update
+      window.dispatchEvent(new Event('userProfileUpdated'));
+      
       setEditDialogOpen(false);
     } catch (e: unknown) {
       console.error('Update error:', e);
@@ -249,7 +257,9 @@ export default function Profile() {
     }
   };
 
-  const isSuperAdmin = user?.email === 'admin@pundra.edu' || user?.isAdmin;
+  // Determine if user is super admin
+  const userRole = user?.role || (user?.email === 'admin@pundra.edu' ? 'super_admin' : user?.isAdmin ? 'admin' : 'user');
+  const isSuperAdmin = userRole === 'super_admin';
 
   async function downloadQR() {
     if (!token) {

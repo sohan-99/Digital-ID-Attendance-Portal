@@ -8,7 +8,8 @@ interface User {
   name: string;
   email: string;
   passwordHash: string;
-  isAdmin: boolean;
+  isAdmin: boolean; // Deprecated: use role instead
+  role?: 'super_admin' | 'admin' | 'user';
   profilePicture?: string | null;
   studentId?: string | null;
   program?: string | null;
@@ -68,6 +69,7 @@ export function addUser(data: {
   email: string;
   passwordHash: string;
   isAdmin?: boolean;
+  role?: 'super_admin' | 'admin' | 'user';
   profilePicture?: string | null;
   studentId?: string | null;
   program?: string | null;
@@ -78,12 +80,20 @@ export function addUser(data: {
 }): User {
   const db = load();
   const id = db.nextUserId++;
+  
+  // Determine role: use provided role, or convert from isAdmin, or default to 'user'
+  let userRole: 'super_admin' | 'admin' | 'user' = data.role || 'user';
+  if (!data.role && data.isAdmin) {
+    userRole = 'admin';
+  }
+  
   const user: User = {
     id,
     name: data.name,
     email: data.email,
     passwordHash: data.passwordHash,
-    isAdmin: !!data.isAdmin,
+    isAdmin: !!data.isAdmin || userRole === 'super_admin' || userRole === 'admin',
+    role: userRole,
     profilePicture: data.profilePicture || null,
     studentId: data.studentId || null,
     program: data.program || null,
@@ -110,6 +120,11 @@ export function updateUser(
   if (data.email !== undefined) user.email = data.email;
   if (data.passwordHash !== undefined) user.passwordHash = data.passwordHash;
   if (data.isAdmin !== undefined) user.isAdmin = !!data.isAdmin;
+  if (data.role !== undefined) {
+    user.role = data.role;
+    // Update isAdmin based on role
+    user.isAdmin = data.role === 'super_admin' || data.role === 'admin';
+  }
   if (data.profilePicture !== undefined) user.profilePicture = data.profilePicture;
   if (data.studentId !== undefined) user.studentId = data.studentId;
   if (data.program !== undefined) user.program = data.program;
@@ -204,4 +219,24 @@ export function recentCounts(days = 7): Array<{ day: string; cnt: number }> {
   });
   
   return Object.keys(map).map((day) => ({ day, cnt: map[day] }));
+}
+
+// Helper to get user role, with backward compatibility
+export function getUserRole(user: User): 'super_admin' | 'admin' | 'user' {
+  if (user.role) return user.role;
+  // Backward compatibility: if no role field, check email or isAdmin
+  if (user.email === 'admin@pundra.edu') return 'super_admin';
+  if (user.isAdmin) return 'admin';
+  return 'user';
+}
+
+// Helper to check if user is super admin
+export function isSuperAdmin(user: User): boolean {
+  return getUserRole(user) === 'super_admin';
+}
+
+// Helper to check if user is any kind of admin
+export function isAnyAdmin(user: User): boolean {
+  const role = getUserRole(user);
+  return role === 'super_admin' || role === 'admin';
 }

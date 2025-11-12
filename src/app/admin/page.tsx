@@ -41,6 +41,8 @@ import {
   Card,
   CardContent,
   Stack,
+  Pagination,
+  ButtonGroup,
 } from '@mui/material';
 import {
   Download as DownloadIcon,
@@ -77,6 +79,7 @@ interface User {
   name: string;
   email: string;
   isAdmin: boolean;
+  role?: 'super_admin' | 'admin' | 'user';
   studentId?: string;
   program?: string;
   department?: string;
@@ -96,6 +99,10 @@ interface AttendanceRecord {
 export default function AdminPage() {
   const SUPER_ADMIN_EMAIL = 'admin@pundra.edu';
 
+  // State for current user
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [userRole, setUserRole] = useState<'super_admin' | 'admin' | 'user'>('user');
+
   // State for stats
   const [stats, setStats] = useState<Stats>({ totalUsers: 0, totalAttendance: 0 });
 
@@ -103,6 +110,9 @@ export default function AdminPage() {
   const [users, setUsers] = useState<User[]>([]);
   const [showCreateUser, setShowCreateUser] = useState(false);
   const [editUserId, setEditUserId] = useState<number | null>(null);
+  const [userPage, setUserPage] = useState(1);
+  const [usersPerPage] = useState(10);
+  const [roleFilter, setRoleFilter] = useState<'all' | 'super_admin' | 'admin' | 'user'>('all');
   const [createForm, setCreateForm] = useState({
     name: '',
     email: '',
@@ -115,6 +125,7 @@ export default function AdminPage() {
     sessionYear: '',
     bloodGroup: '',
     isAdmin: false,
+    role: 'user',
   });
   const [editForm, setEditForm] = useState({
     name: '',
@@ -127,6 +138,7 @@ export default function AdminPage() {
     sessionYear: '',
     bloodGroup: '',
     isAdmin: false,
+    role: 'user' as 'super_admin' | 'admin' | 'user',
   });
 
   // State for attendance
@@ -256,13 +268,30 @@ export default function AdminPage() {
         headers: { Authorization: `Bearer ${token}` },
       })
       .then((res) => {
-        if (!res.data.user.isAdmin) {
+        const user = res.data.user;
+        
+        // Determine user role
+        let role: 'super_admin' | 'admin' | 'user' = 'user';
+        if (user.role) {
+          role = user.role;
+        } else if (user.email === SUPER_ADMIN_EMAIL) {
+          role = 'super_admin';
+        } else if (user.isAdmin) {
+          role = 'admin';
+        }
+        
+        setCurrentUser(user);
+        setUserRole(role);
+        
+        // Check if user has admin access
+        if (role === 'user') {
           setErrorMsg('Access denied. Admin privileges required.');
           setTimeout(() => {
             window.location.href = '/profile';
           }, 2000);
           return;
         }
+        
         // Initial data load
         refreshAllData();
       })
@@ -287,7 +316,7 @@ export default function AdminPage() {
     const token = localStorage.getItem('pundra_token');
     if (!token) return;
 
-    const { name, email, password, studentId, program, department, batch, sessionSemester, sessionYear, bloodGroup, isAdmin } = createForm;
+    const { name, email, password, studentId, program, department, batch, sessionSemester, sessionYear, bloodGroup, role } = createForm;
 
     if (!name || !email || !password) {
       setErrorMsg('Name, email, and password are required');
@@ -300,7 +329,7 @@ export default function AdminPage() {
     axios
       .post(
         '/api/admin/users',
-        { name, email, password, studentId, program, department, batch, session, bloodGroup, isAdmin },
+        { name, email, password, studentId, program, department, batch, session, bloodGroup, role },
         { headers: { Authorization: `Bearer ${token}` } }
       )
       .then((res) => {
@@ -308,6 +337,7 @@ export default function AdminPage() {
         setSuccessMsg('User created successfully');
         setErrorMsg('');
         setShowCreateUser(false);
+        setUserPage(1); // Reset to first page
         setCreateForm({
           name: '',
           email: '',
@@ -320,6 +350,7 @@ export default function AdminPage() {
           sessionYear: '',
           bloodGroup: '',
           isAdmin: false,
+          role: 'user',
         });
       })
       .catch((err) => {
@@ -336,13 +367,15 @@ export default function AdminPage() {
     const user = users.find((u) => u.id === userId);
     if (!user) return;
 
-    if (user.email === SUPER_ADMIN_EMAIL) {
+    // Prevent editing super admin by non-super admin
+    const userRole = user.role || (user.email === SUPER_ADMIN_EMAIL ? 'super_admin' : user.isAdmin ? 'admin' : 'user');
+    if (userRole === 'super_admin' && currentUser?.email !== SUPER_ADMIN_EMAIL) {
       setErrorMsg('Cannot edit super admin');
       setSuccessMsg('');
       return;
     }
 
-    const { name, email, studentId, program, department, batch, sessionSemester, sessionYear, bloodGroup, isAdmin } = editForm;
+    const { name, email, studentId, program, department, batch, sessionSemester, sessionYear, bloodGroup, role } = editForm;
 
     if (!name || !email) {
       setErrorMsg('Name and email are required');
@@ -355,7 +388,7 @@ export default function AdminPage() {
     axios
       .put(
         `/api/admin/users/${userId}`,
-        { name, email, studentId, program, department, batch, session, bloodGroup, isAdmin },
+        { name, email, studentId, program, department, batch, session, bloodGroup, role },
         { headers: { Authorization: `Bearer ${token}` } }
       )
       .then((res) => {
@@ -391,9 +424,18 @@ export default function AdminPage() {
         headers: { Authorization: `Bearer ${token}` },
       })
       .then(() => {
-        setUsers(users.filter((u) => u.id !== userId));
+        const updatedUsers = users.filter((u) => u.id !== userId);
+        setUsers(updatedUsers);
         setSuccessMsg('User deleted successfully');
         setErrorMsg('');
+        
+        // Reset to page 1 if current page is now empty
+        const maxPage = Math.ceil(updatedUsers.length / usersPerPage);
+        if (userPage > maxPage && maxPage > 0) {
+          setUserPage(maxPage);
+        } else if (updatedUsers.length === 0) {
+          setUserPage(1);
+        }
       })
       .catch((err) => {
         console.error(err);
@@ -573,9 +615,16 @@ export default function AdminPage() {
   return (
     <Container maxWidth="xl" sx={{ py: 4 }}>
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-        <Typography variant="h3" component="h1" fontWeight="bold" color="primary">
-          Admin Dashboard
-        </Typography>
+        <Box>
+          <Typography variant="h3" component="h1" fontWeight="bold" color="primary">
+            Admin Dashboard
+          </Typography>
+          {currentUser && (
+            <Typography variant="subtitle1" color="text.secondary">
+              {currentUser.name} - {userRole === 'super_admin' ? 'Super Admin' : 'Admin'}
+            </Typography>
+          )}
+        </Box>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
           <FormControlLabel
             control={
@@ -698,14 +747,74 @@ export default function AdminPage() {
         />
       </Paper>
 
-      {/* User Management */}
-      <Paper sx={{ p: 3, mb: 4 }}>
-        <Typography variant="h5" gutterBottom fontWeight="bold">
-          User Management
-        </Typography>
-        <Button variant="contained" onClick={() => setShowCreateUser(!showCreateUser)} sx={{ mb: 2 }}>
-          {showCreateUser ? 'Cancel' : 'Create User'}
-        </Button>
+      {/* User Management - Super Admin Only */}
+      {userRole === 'super_admin' && (() => {
+        // Filter users based on role filter
+        const filteredUsers = users.filter(user => {
+          if (roleFilter === 'all') return true;
+          const currentRole = user.role || (user.email === SUPER_ADMIN_EMAIL ? 'super_admin' : user.isAdmin ? 'admin' : 'user');
+          return currentRole === roleFilter;
+        });
+        
+        return (
+        <Paper sx={{ p: 3, mb: 4 }}>
+          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+            <Typography variant="h5" fontWeight="bold">
+              User Management
+            </Typography>
+            <Typography variant="body2" color="text.secondary">
+              Total Users: {users.length} | Filtered: {filteredUsers.length} | Showing {Math.min((userPage - 1) * usersPerPage + 1, filteredUsers.length)}-{Math.min(userPage * usersPerPage, filteredUsers.length)}
+            </Typography>
+          </Box>
+          
+          {/* Filter Buttons */}
+          <Box sx={{ mb: 2, display: 'flex', gap: 2, flexWrap: 'wrap', alignItems: 'center' }}>
+            <Typography variant="body2" fontWeight="bold">Filter by Role:</Typography>
+            <ButtonGroup variant="outlined" size="small">
+              <Button 
+                variant={roleFilter === 'all' ? 'contained' : 'outlined'}
+                onClick={() => {
+                  setRoleFilter('all');
+                  setUserPage(1);
+                }}
+              >
+                All ({users.length})
+              </Button>
+              <Button 
+                variant={roleFilter === 'super_admin' ? 'contained' : 'outlined'}
+                color={roleFilter === 'super_admin' ? 'error' : 'primary'}
+                onClick={() => {
+                  setRoleFilter('super_admin');
+                  setUserPage(1);
+                }}
+              >
+                Super Admin ({users.filter(u => (u.role || (u.email === SUPER_ADMIN_EMAIL ? 'super_admin' : u.isAdmin ? 'admin' : 'user')) === 'super_admin').length})
+              </Button>
+              <Button 
+                variant={roleFilter === 'admin' ? 'contained' : 'outlined'}
+                color={roleFilter === 'admin' ? 'secondary' : 'primary'}
+                onClick={() => {
+                  setRoleFilter('admin');
+                  setUserPage(1);
+                }}
+              >
+                Admin ({users.filter(u => (u.role || (u.email === SUPER_ADMIN_EMAIL ? 'super_admin' : u.isAdmin ? 'admin' : 'user')) === 'admin').length})
+              </Button>
+              <Button 
+                variant={roleFilter === 'user' ? 'contained' : 'outlined'}
+                onClick={() => {
+                  setRoleFilter('user');
+                  setUserPage(1);
+                }}
+              >
+                User ({users.filter(u => (u.role || (u.email === SUPER_ADMIN_EMAIL ? 'super_admin' : u.isAdmin ? 'admin' : 'user')) === 'user').length})
+              </Button>
+            </ButtonGroup>
+          </Box>
+          
+          <Button variant="contained" onClick={() => setShowCreateUser(!showCreateUser)} sx={{ mb: 2 }}>
+            {showCreateUser ? 'Cancel' : 'Create User'}
+          </Button>
 
         <Collapse in={showCreateUser}>
           <Box sx={{ mb: 3, p: 2, bgcolor: 'background.default', borderRadius: 1 }}>
@@ -816,15 +925,28 @@ export default function AdminPage() {
                 </FormControl>
               </Grid>
               <Grid item xs={12}>
-                <FormControlLabel
-                  control={
-                    <Checkbox
-                      checked={createForm.isAdmin}
-                      onChange={(e) => setCreateForm({ ...createForm, isAdmin: e.target.checked })}
-                    />
-                  }
-                  label="Admin User"
-                />
+                <FormControl fullWidth>
+                  <InputLabel>Role</InputLabel>
+                  <Select
+                    value={createForm.role}
+                    label="Role"
+                    onChange={(e) => {
+                      const role = e.target.value as 'super_admin' | 'admin' | 'user';
+                      setCreateForm({ 
+                        ...createForm, 
+                        role: role,
+                        isAdmin: role === 'super_admin' || role === 'admin'
+                      });
+                    }}
+                  >
+                    <MenuItem value="user">User</MenuItem>
+                    <MenuItem value="admin">Admin</MenuItem>
+                    {/* Only super admin can create another super admin */}
+                    {userRole === 'super_admin' && (
+                      <MenuItem value="super_admin">Super Admin</MenuItem>
+                    )}
+                  </Select>
+                </FormControl>
               </Grid>
             </Grid>
             <Button variant="contained" color="primary" onClick={createUser} sx={{ mt: 2 }}>
@@ -848,9 +970,20 @@ export default function AdminPage() {
               </TableRow>
             </TableHead>
             <TableBody>
-              {users.map((user) => (
-                <TableRow key={user.id}>
-                  <TableCell>{user.id}</TableCell>
+              {filteredUsers.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={8} align="center" sx={{ py: 4 }}>
+                    <Typography variant="body1" color="text.secondary">
+                      No users found with the selected role filter.
+                    </Typography>
+                  </TableCell>
+                </TableRow>
+              ) : (
+                filteredUsers
+                  .slice((userPage - 1) * usersPerPage, userPage * usersPerPage)
+                  .map((user, index) => (
+                  <TableRow key={user.id}>
+                  <TableCell>{(userPage - 1) * usersPerPage + index + 1}</TableCell>
                   <TableCell>
                     {editUserId === user.id ? (
                       <TextField
@@ -909,17 +1042,40 @@ export default function AdminPage() {
                   </TableCell>
                   <TableCell>
                     {editUserId === user.id ? (
-                      <FormControlLabel
-                        control={
-                          <Checkbox
-                            checked={editForm.isAdmin}
-                            onChange={(e) => setEditForm({ ...editForm, isAdmin: e.target.checked })}
-                          />
-                        }
-                        label="Admin"
-                      />
+                      <FormControl size="small" fullWidth>
+                        <Select
+                          value={editForm.role}
+                          onChange={(e) => {
+                            const role = e.target.value as 'super_admin' | 'admin' | 'user';
+                            setEditForm({ 
+                              ...editForm, 
+                              role: role,
+                              isAdmin: role === 'super_admin' || role === 'admin'
+                            });
+                          }}
+                        >
+                          <MenuItem value="user">User</MenuItem>
+                          <MenuItem value="admin">Admin</MenuItem>
+                          {userRole === 'super_admin' && (
+                            <MenuItem value="super_admin">Super Admin</MenuItem>
+                          )}
+                        </Select>
+                      </FormControl>
                     ) : (
-                      <Chip label={user.isAdmin ? 'Admin' : 'User'} color={user.isAdmin ? 'primary' : 'default'} size="small" />
+                      <Chip 
+                        label={
+                          user.role === 'super_admin' ? 'Super Admin' : 
+                          user.role === 'admin' ? 'Admin' : 
+                          user.isAdmin ? 'Admin' : 
+                          'User'
+                        } 
+                        color={
+                          user.role === 'super_admin' ? 'error' :
+                          user.role === 'admin' || user.isAdmin ? 'primary' : 
+                          'default'
+                        } 
+                        size="small" 
+                      />
                     )}
                   </TableCell>
                   <TableCell>
@@ -939,6 +1095,16 @@ export default function AdminPage() {
                           color="primary"
                           onClick={() => {
                             const session = user.session?.split(' ') || [];
+                            // Determine user role
+                            let role: 'super_admin' | 'admin' | 'user' = 'user';
+                            if (user.role) {
+                              role = user.role;
+                            } else if (user.email === SUPER_ADMIN_EMAIL) {
+                              role = 'super_admin';
+                            } else if (user.isAdmin) {
+                              role = 'admin';
+                            }
+                            
                             setEditForm({
                               name: user.name,
                               email: user.email,
@@ -950,6 +1116,7 @@ export default function AdminPage() {
                               sessionYear: session[1] || '',
                               bloodGroup: user.bloodGroup || '',
                               isAdmin: user.isAdmin,
+                              role: role,
                             });
                             setEditUserId(user.id);
                           }}
@@ -972,11 +1139,29 @@ export default function AdminPage() {
                     )}
                   </TableCell>
                 </TableRow>
-              ))}
+              ))
+              )}
             </TableBody>
           </Table>
         </TableContainer>
+        
+        {/* Pagination */}
+        {filteredUsers.length > usersPerPage && (
+          <Box sx={{ display: 'flex', justifyContent: 'center', mt: 3 }}>
+            <Pagination 
+              count={Math.ceil(filteredUsers.length / usersPerPage)} 
+              page={userPage} 
+              onChange={(e, value) => setUserPage(value)}
+              color="primary"
+              size="large"
+              showFirstButton
+              showLastButton
+            />
+          </Box>
+        )}
       </Paper>
+        );
+      })()}
 
       {/* Day-wise Attendance */}
       <Paper sx={{ p: 3, mb: 4 }}>
