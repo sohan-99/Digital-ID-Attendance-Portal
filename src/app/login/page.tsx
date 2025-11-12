@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState } from 'react';
 import axios from 'axios';
 import {
   Box,
@@ -30,28 +30,6 @@ export default function LoginPage() {
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [err, setErr] = useState<string | null>(null);
-  const [isAdminLogin, setIsAdminLogin] = useState(() => {
-    try {
-      if (typeof window !== 'undefined') {
-        const params = new URLSearchParams(window.location.search);
-        return params.get('admin') ? true : false;
-      }
-    } catch(e) {}
-    return false;
-  });
-  const emailRef = useRef<HTMLInputElement>(null);
-  const passwordRef = useRef<HTMLInputElement>(null);
-
-  useEffect(() => {
-    if (!isAdminLogin) return;
-    const t = setTimeout(() => {
-      try {
-        if (emailRef.current) { emailRef.current.value = ''; setEmail(''); }
-        if (passwordRef.current) { passwordRef.current.value = ''; setPassword(''); }
-      } catch(e) { /* ignore */ }
-    }, 50);
-    return () => clearTimeout(t);
-  }, [isAdminLogin]);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault(); 
@@ -93,22 +71,14 @@ export default function LoginPage() {
             </Typography>
           </Box>
 
-          <form onSubmit={submit} autoComplete={isAdminLogin ? 'off' : 'on'} name="user-login-form">
-            {isAdminLogin && (
-              <>
-                <input type="text" name="fake-username" autoComplete="username" style={{position:'absolute', left:'-10000px', top:'auto'}} />
-                <input type="password" name="fake-password" autoComplete="current-password" style={{position:'absolute', left:'-10000px', top:'auto'}} />
-              </>
-            )}
-            
+          <form onSubmit={submit} autoComplete="on" name="user-login-form">
             <Stack spacing={3}>
               <TextField
-                inputRef={emailRef}
                 fullWidth
                 label="Email Address"
                 type="email"
                 name="user-email"
-                autoComplete={isAdminLogin ? 'off' : 'email'}
+                autoComplete="email"
                 value={email}
                 onChange={e=>setEmail(e.target.value)}
                 required
@@ -122,12 +92,11 @@ export default function LoginPage() {
               />
 
               <TextField
-                inputRef={passwordRef}
                 fullWidth
                 label="Password"
                 type={showPassword ? 'text' : 'password'}
                 name="user-password"
-                autoComplete={isAdminLogin ? 'new-password' : 'current-password'}
+                autoComplete="current-password"
                 value={password}
                 onChange={e=>setPassword(e.target.value)}
                 required
@@ -174,18 +143,13 @@ export default function LoginPage() {
             </Typography>
           </Divider>
 
-          <Stack direction="row" justifyContent="space-between" alignItems="center" flexWrap="wrap" gap={2}>
+          <Box sx={{ textAlign: 'center' }}>
             <Link href="/register" passHref legacyBehavior>
               <MuiLink underline="hover" sx={{ fontSize: '0.95rem' }}>
                 Create new account
               </MuiLink>
             </Link>
-            <Link href="/admin-login" passHref legacyBehavior>
-              <MuiLink underline="hover" color="secondary" sx={{ fontSize: '0.95rem', fontWeight: 500 }}>
-                Admin login
-              </MuiLink>
-            </Link>
-          </Stack>
+          </Box>
         </Paper>
       </Box>
     </Container>
