@@ -250,8 +250,27 @@ export default function AdminPage() {
       return;
     }
 
-    // Initial data load
-    refreshAllData();
+    // Verify user is admin
+    axios
+      .get('http://localhost:3000/api/users/me', {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      .then((res) => {
+        if (!res.data.user.isAdmin) {
+          setErrorMsg('Access denied. Admin privileges required.');
+          setTimeout(() => {
+            window.location.href = '/profile';
+          }, 2000);
+          return;
+        }
+        // Initial data load
+        refreshAllData();
+      })
+      .catch((err) => {
+        console.error('Auth check failed:', err);
+        window.location.href = '/login';
+        return;
+      });
 
     // Set up auto-refresh interval (every 5 seconds)
     const intervalId = setInterval(() => {

@@ -106,7 +106,7 @@ export default function NavBar() {
     { label: 'Home', href: '/', icon: <HomeIcon /> },
     { label: 'Scanner', href: '/scanner', icon: <ScannerIcon /> },
     { label: 'Profile', href: '/profile', icon: <PersonIcon /> },
-    { label: 'Admin', href: '/admin', icon: <AdminIcon /> },
+    ...(user?.isAdmin ? [{ label: 'Admin', href: '/admin', icon: <AdminIcon /> }] : []),
   ];
 
   return (
