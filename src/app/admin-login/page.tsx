@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import axios from 'axios';
 import {
   Box,
@@ -16,6 +16,7 @@ import {
   InputAdornment,
   IconButton,
   Chip,
+  CircularProgress,
 } from '@mui/material';
 import {
   Email as EmailIcon,
@@ -32,6 +33,37 @@ export default function AdminLogin() {
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const [checking, setChecking] = useState(true);
+  const [alreadyLoggedIn, setAlreadyLoggedIn] = useState(false);
+
+  useEffect(() => {
+    // Check if user is already logged in as admin
+    const token = localStorage.getItem('pundra_token');
+    if (!token) {
+      setChecking(false);
+      return;
+    }
+
+    axios
+      .get('http://localhost:3000/api/users/me', {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      .then((res) => {
+        if (res.data.user && res.data.user.isAdmin) {
+          setAlreadyLoggedIn(true);
+          setErr('You are already logged in as an admin. Redirecting to dashboard...');
+          setTimeout(() => {
+            window.location.href = '/admin';
+          }, 2000);
+        } else {
+          setChecking(false);
+        }
+      })
+      .catch(() => {
+        // Token invalid or expired, allow login
+        setChecking(false);
+      });
+  }, []);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -77,6 +109,33 @@ export default function AdminLogin() {
         setErr('Login failed');
       }
     }
+  }
+
+  if (checking || alreadyLoggedIn) {
+    return (
+      <Container maxWidth="sm">
+        <Box sx={{ py: 6 }}>
+          <Paper
+            elevation={4}
+            sx={{ p: { xs: 3, sm: 5 }, borderRadius: 3, border: '2px solid', borderColor: 'secondary.main' }}
+          >
+            <Box sx={{ textAlign: 'center', py: 4 }}>
+              <CircularProgress size={60} sx={{ mb: 3 }} />
+              {alreadyLoggedIn && err && (
+                <Alert severity="info" sx={{ borderRadius: 2, mt: 2 }}>
+                  {err}
+                </Alert>
+              )}
+              {checking && (
+                <Typography variant="body1" color="text.secondary">
+                  Checking authentication...
+                </Typography>
+              )}
+            </Box>
+          </Paper>
+        </Box>
+      </Container>
+    );
   }
 
   return (
