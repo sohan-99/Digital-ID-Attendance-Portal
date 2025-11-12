@@ -42,6 +42,8 @@ export default function Scanner() {
   const [selectedCamera, setSelectedCamera] = useState('');
   const cooldownRef = useRef(false);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [isChecking, setIsChecking] = useState(true);
 
   useEffect(() => {
     const t = localStorage.getItem('pundra_token');
@@ -49,7 +51,28 @@ export default function Scanner() {
       window.location.href = '/login';
       return;
     }
-    setIsAuthenticated(true);
+    
+    // Check if user is admin
+    axios
+      .get('http://localhost:3000/api/users/me', {
+        headers: { Authorization: `Bearer ${t}` },
+      })
+      .then((res) => {
+        if (res.data.user.isAdmin) {
+          setIsAdmin(true);
+          setIsAuthenticated(true);
+        } else {
+          // Regular users cannot access scanner
+          window.location.href = '/profile';
+        }
+      })
+      .catch((err) => {
+        console.error('Auth check failed:', err);
+        window.location.href = '/login';
+      })
+      .finally(() => {
+        setIsChecking(false);
+      });
   }, []);
 
   useEffect(() => {
@@ -193,7 +216,29 @@ export default function Scanner() {
     setToast((t) => ({ ...t, visible: false }));
   }
 
-  if (!isAuthenticated) {
+  if (isChecking) {
+    return (
+      <Container maxWidth="lg">
+        <Box
+          sx={{
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+            minHeight: '60vh',
+            gap: 2,
+          }}
+        >
+          <CircularProgress size={60} />
+          <Typography variant="h6" color="text.secondary">
+            Verifying access...
+          </Typography>
+        </Box>
+      </Container>
+    );
+  }
+
+  if (!isAuthenticated || !isAdmin) {
     return null;
   }
 

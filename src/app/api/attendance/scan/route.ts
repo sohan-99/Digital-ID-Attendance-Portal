@@ -1,8 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { addAttendance, findUserById, getAttendance } from '@/lib/db';
-import { verifyToken, requireAuth } from '@/lib/auth';
+import { verifyToken, requireAuth, requireAdmin } from '@/lib/auth';
 
 export async function POST(request: NextRequest) {
+  // Verify that the person scanning is an admin
+  const authResult = requireAdmin(request);
+  if ('error' in authResult) {
+    return NextResponse.json({ error: authResult.error }, { status: authResult.status });
+  }
+
   try {
     const body = await request.json();
     const { token, location } = body;
@@ -11,6 +17,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Missing token' }, { status: 400 });
     }
 
+    // Verify the student's QR code token
     const payload = verifyToken(token);
     const user = findUserById(payload.id);
     

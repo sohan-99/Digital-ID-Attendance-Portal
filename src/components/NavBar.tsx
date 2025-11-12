@@ -184,7 +184,7 @@ export default function NavBar() {
 
   const navItems = [
     { label: 'Home', href: '/', icon: <HomeIcon /> },
-    { label: 'Scanner', href: '/scanner', icon: <ScannerIcon /> },
+    ...(user?.isAdmin ? [{ label: 'Scanner', href: '/scanner', icon: <ScannerIcon /> }] : []),
     { label: 'Profile', href: '/profile', icon: <PersonIcon /> },
     ...(user?.isAdmin ? [{ label: 'Admin', href: '/admin', icon: <AdminIcon /> }] : []),
   ];
