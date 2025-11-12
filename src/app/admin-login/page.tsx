@@ -78,19 +78,26 @@ export default function AdminLogin() {
       localStorage.setItem('pundra_token', res.data.token);
       localStorage.setItem('pundra_user', JSON.stringify(user));
       
-      // Try to store credentials
+      // Dispatch custom event to update NavBar
+      window.dispatchEvent(new Event('userLoggedIn'));
+      
+      // Save credentials for admin users only
       try {
         if (typeof navigator !== 'undefined' && navigator.credentials && navigator.credentials.store) {
           try {
             // PasswordCredential is not standard in TypeScript, so we check if it exists
             const WindowWithCredentials = window as typeof window & {
               PasswordCredential?: {
-                new (data: { id: string; password: string }): Credential;
+                new (data: { id: string; password: string; name?: string }): Credential;
               };
             };
             
             if (WindowWithCredentials.PasswordCredential) {
-              const cred = new WindowWithCredentials.PasswordCredential({ id: email, password });
+              const cred = new WindowWithCredentials.PasswordCredential({ 
+                id: email, 
+                password,
+                name: 'Admin Login'
+              });
               await navigator.credentials.store(cred);
             }
           } catch {
@@ -170,14 +177,15 @@ export default function AdminLogin() {
             <Chip icon={<SecurityIcon />} label="Secure Login" color="secondary" size="small" sx={{ mt: 1 }} />
           </Box>
 
-          <form onSubmit={submit} autoComplete="on" name="admin-login-form">
+          <form onSubmit={submit} autoComplete="on" name="admin-login-form" id="admin-login-form">
             <Stack spacing={3}>
               <TextField
                 fullWidth
                 label="Admin Email"
                 type="email"
-                name="admin-email"
-                autoComplete="email"
+                name="username"
+                id="admin-email"
+                autoComplete="section-admin username email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
@@ -194,8 +202,9 @@ export default function AdminLogin() {
                 fullWidth
                 label="Admin Password"
                 type={showPassword ? 'text' : 'password'}
-                name="admin-password"
-                autoComplete="current-password"
+                name="password"
+                id="admin-password"
+                autoComplete="section-admin current-password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required

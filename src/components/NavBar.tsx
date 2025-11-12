@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
+import { usePathname } from 'next/navigation';
 import axios from 'axios';
 import { 
   AppBar, 
@@ -37,46 +38,125 @@ interface User {
 }
 
 export default function NavBar() {
-  const [user, setUser] = useState<User | null>(null);
-  const [profilePicture, setProfilePicture] = useState<string | null>(null);
+  const pathname = usePathname();
+  const [isClient, setIsClient] = useState(false);
+  const [user, setUser] = useState<User | null>(() => {
+    // Initialize user from localStorage to prevent flicker
+    try {
+      if (typeof window !== 'undefined') {
+        const raw = localStorage.getItem('pundra_user');
+        if (raw) {
+          return JSON.parse(raw);
+        }
+      }
+    } catch (e) {
+      console.error('Error reading user from localStorage:', e);
+    }
+    return null;
+  });
+  const [profilePicture, setProfilePicture] = useState<string | null>(() => {
+    // Initialize profile picture from localStorage to prevent flicker
+    try {
+      if (typeof window !== 'undefined') {
+        const raw = localStorage.getItem('pundra_user');
+        if (raw) {
+          const userData = JSON.parse(raw);
+          return userData.profilePicture || null;
+        }
+      }
+    } catch (e) {
+      console.error('Error reading profile picture from localStorage:', e);
+    }
+    return null;
+  });
   const [anchorElNav, setAnchorElNav] = useState<null | HTMLElement>(null);
   const [anchorElUser, setAnchorElUser] = useState<null | HTMLElement>(null);
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
 
-  useEffect(() => {
+  const loadUserData = (forceUpdate = false) => {
     try { 
       const raw = localStorage.getItem('pundra_user'); 
-      if (raw) {
+      const token = localStorage.getItem('pundra_token');
+      
+      if (raw && token) {
         const userData = JSON.parse(raw);
-        setUser(userData);
         
-        // Set profile picture immediately from cache to avoid flicker
-        if (userData.profilePicture) {
-          setProfilePicture(userData.profilePicture);
+        // Only update state if forcing or user is different
+        if (forceUpdate) {
+          setUser(userData);
+          if (userData.profilePicture) {
+            setProfilePicture(userData.profilePicture);
+          }
         }
         
-        // Fetch the latest user data including profile picture
-        const token = localStorage.getItem('pundra_token');
-        if (token) {
-          axios.get('http://localhost:3000/api/users/me', {
-            headers: { Authorization: `Bearer ${token}` }
-          })
-          .then(res => {
-            const updatedUser = res.data.user;
-            setProfilePicture(updatedUser.profilePicture);
-            // Update localStorage with latest data
-            localStorage.setItem('pundra_user', JSON.stringify(updatedUser));
-          })
-          .catch(err => {
-            console.error('Failed to fetch user data:', err);
-            // Keep the cached profile picture on error
-          });
-        }
+        // Fetch the latest user data including profile picture (silently update)
+        axios.get('http://localhost:3000/api/users/me', {
+          headers: { Authorization: `Bearer ${token}` }
+        })
+        .then(res => {
+          const updatedUser = res.data.user;
+          setUser(updatedUser);
+          setProfilePicture(updatedUser.profilePicture);
+          // Update localStorage with latest data
+          localStorage.setItem('pundra_user', JSON.stringify(updatedUser));
+        })
+        .catch(err => {
+          console.error('Failed to fetch user data:', err);
+          // Keep the cached user and profile picture on error - don't clear
+        });
+      } else if (!token) {
+        // Only clear user if there's no token
+        setUser(null);
+        setProfilePicture(null);
       }
     } catch(e){
       console.error('Error loading user data:', e);
     }
+  };
+
+  useEffect(() => {
+    // Mark that we're on the client side
+    setIsClient(true);
+    
+    // Don't reload user data on mount since we already initialized from localStorage
+    // Just start the background API refresh
+    const token = localStorage.getItem('pundra_token');
+    if (token) {
+      // Silently refresh user data in background
+      axios.get('http://localhost:3000/api/users/me', {
+        headers: { Authorization: `Bearer ${token}` }
+      })
+      .then(res => {
+        const updatedUser = res.data.user;
+        setUser(updatedUser);
+        setProfilePicture(updatedUser.profilePicture);
+        localStorage.setItem('pundra_user', JSON.stringify(updatedUser));
+      })
+      .catch(err => {
+        console.error('Failed to fetch user data:', err);
+      });
+    }
+
+    // Listen for storage events (login/logout from other tabs)
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === 'pundra_user' || e.key === 'pundra_token') {
+        loadUserData(true);
+      }
+    };
+
+    // Listen for custom login event
+    const handleLoginEvent = () => {
+      loadUserData(true);
+    };
+
+    window.addEventListener('storage', handleStorageChange);
+    window.addEventListener('userLoggedIn', handleLoginEvent);
+
+    return () => {
+      window.removeEventListener('storage', handleStorageChange);
+      window.removeEventListener('userLoggedIn', handleLoginEvent);
+    };
   }, []);
 
   function logout(){
@@ -310,11 +390,14 @@ export default function NavBar() {
                 </Menu>
               </>
             ) : (
-              <Link href="/login" style={{ textDecoration: 'none' }}>
-                <Button variant="contained" color="primary" size="medium">
-                  Login
-                </Button>
-              </Link>
+              // Don't show login button on auth pages or before client hydration
+              isClient && pathname !== '/login' && pathname !== '/register' && pathname !== '/admin-login' && (
+                <Link href="/login" style={{ textDecoration: 'none' }}>
+                  <Button variant="contained" color="primary" size="medium">
+                    Login
+                  </Button>
+                </Link>
+              )
             )}
           </Box>
         </Toolbar>

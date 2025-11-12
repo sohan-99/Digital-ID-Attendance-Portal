@@ -75,6 +75,29 @@ export default function RegisterPage() {
       localStorage.setItem('pundra_token', data.token)
       localStorage.setItem('pundra_user', JSON.stringify(data.user))
 
+      // Dispatch custom event to update NavBar
+      window.dispatchEvent(new Event('userLoggedIn'));
+
+      // Save credentials for password manager
+      try {
+        if (typeof navigator !== 'undefined' && navigator.credentials && navigator.credentials.store) {
+          try {
+            if ((window as any).PasswordCredential) {
+              const cred = new (window as any).PasswordCredential({ 
+                id: formData.email, 
+                password: formData.password,
+                name: 'User Login'
+              });
+              await navigator.credentials.store(cred);
+            }
+          } catch(e) { 
+            console.log('Credential storage not supported or failed:', e);
+          }
+        }
+      } catch(e) { 
+        console.log('Credential storage error:', e);
+      }
+
       // Redirect to profile
       router.push('/profile')
     } catch (err: unknown) {
@@ -111,11 +134,12 @@ export default function RegisterPage() {
             </Alert>
           )}
 
-          <form onSubmit={handleSubmit}>
+          <form onSubmit={handleSubmit} autoComplete="on" name="user-register-form" id="user-register-form">
             <Stack spacing={2}>
               <TextField
                 label="Full Name"
                 name="name"
+                autoComplete="name"
                 value={formData.name}
                 onChange={handleChange}
                 required
@@ -126,22 +150,22 @@ export default function RegisterPage() {
                 label="Email"
                 name="email"
                 type="email"
+                autoComplete="section-user username email"
                 value={formData.email}
                 onChange={handleChange}
                 required
                 fullWidth
-                autoComplete="off"
               />
 
               <TextField
                 label="Password"
                 name="password"
                 type="password"
+                autoComplete="section-user new-password"
                 value={formData.password}
                 onChange={handleChange}
                 required
                 fullWidth
-                autoComplete="new-password"
                 helperText="Min 6 characters: 1 letter, 1 number, 1 special char (!@#$% etc.)"
               />
 

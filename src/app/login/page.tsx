@@ -36,22 +36,36 @@ export default function LoginPage() {
     setErr(null);
     try {
       const res = await axios.post('http://localhost:3000/api/auth/login', { email, password });
+      
+      // Don't allow admins to login from regular login page
+      if (res.data.user && res.data.user.isAdmin) {
+        setErr('Admin users must use the admin login page');
+        return;
+      }
+      
       localStorage.setItem('pundra_token', res.data.token);
       localStorage.setItem('pundra_user', JSON.stringify(res.data.user));
+      
+      // Dispatch custom event to update NavBar
+      window.dispatchEvent(new Event('userLoggedIn'));
+      
+      // Save credentials for regular users only
       try {
         if (typeof navigator !== 'undefined' && navigator.credentials && navigator.credentials.store) {
           try {
             if ((window as any).PasswordCredential) {
-              const cred = new (window as any).PasswordCredential({ id: email, password });
+              const cred = new (window as any).PasswordCredential({ 
+                id: email, 
+                password,
+                name: 'User Login'
+              });
               await navigator.credentials.store(cred);
-            } else {
-              await navigator.credentials.store({ id: email, password } as any);
             }
           } catch(e) { /* ignore */ }
         }
       } catch(e) { /* ignore */ }
-      if (res.data.user && res.data.user.isAdmin) window.location.href = '/admin';
-      else window.location.href = '/profile';
+      
+      window.location.href = '/profile';
     } catch(e: any) { 
       setErr(e.response?.data?.error || 'Login failed'); 
     }
@@ -71,14 +85,15 @@ export default function LoginPage() {
             </Typography>
           </Box>
 
-          <form onSubmit={submit} autoComplete="on" name="user-login-form">
+          <form onSubmit={submit} autoComplete="on" name="user-login-form" id="user-login-form">
             <Stack spacing={3}>
               <TextField
                 fullWidth
                 label="Email Address"
                 type="email"
-                name="user-email"
-                autoComplete="email"
+                name="username"
+                id="user-email"
+                autoComplete="section-user username email"
                 value={email}
                 onChange={e=>setEmail(e.target.value)}
                 required
@@ -95,8 +110,9 @@ export default function LoginPage() {
                 fullWidth
                 label="Password"
                 type={showPassword ? 'text' : 'password'}
-                name="user-password"
-                autoComplete="current-password"
+                name="password"
+                id="user-password"
+                autoComplete="section-user current-password"
                 value={password}
                 onChange={e=>setPassword(e.target.value)}
                 required
