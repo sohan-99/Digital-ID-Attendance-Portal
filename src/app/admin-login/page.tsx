@@ -11,9 +11,7 @@ import {
   Paper,
   Container,
   Alert,
-  Link as MuiLink,
   Stack,
-  Divider,
   InputAdornment,
   IconButton,
   Chip,
@@ -26,7 +24,6 @@ import {
   AdminPanelSettings as AdminIcon,
   Security as SecurityIcon,
 } from '@mui/icons-material';
-import Link from 'next/link';
 
 export default function AdminLogin() {
   const router = useRouter();
@@ -227,19 +224,6 @@ export default function AdminLogin() {
             </Stack>
           </form>
 
-          <Divider sx={{ my: 3 }}>
-            <Typography variant="body2" color="text.secondary">
-              OR
-            </Typography>
-          </Divider>
-
-          <Box sx={{ textAlign: 'center' }}>
-            <Link href="/login" passHref legacyBehavior>
-              <MuiLink underline="hover" sx={{ fontSize: '0.95rem' }}>
-                Regular user login
-              </MuiLink>
-            </Link>
-          </Box>
         </Paper>
       </Box>
     </Container>

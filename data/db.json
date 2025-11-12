@@ -49,22 +49,6 @@
       "qrTokenExpiry": "2026-11-12T20:04:57.652Z"
     },
     {
-      "id": 6,
-      "name": "zrxdtfcygvuhbjk",
-      "email": "adminn@gmail.com",
-      "passwordHash": "$2b$10$U1s59ILrB5QBvdRz70cIBOLXreHNStBgGxWXLSKSgdQeJ.g4872U.",
-      "isAdmin": false,
-      "profilePicture": null,
-      "studentId": "1111111",
-      "program": "MA",
-      "department": "csrr",
-      "batch": "dwefrgthjuyku",
-      "session": "fertuykil;i",
-      "bloodGroup": "B-",
-      "qrToken": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6NiwiaWF0IjoxNzYyOTc3OTk4LCJleHAiOjE3OTQ1MTM5OTh9.Fr5ztwZB8FHKthYCEeY5FLXSg6NWIfTqzCUH0gKtBpg",
-      "qrTokenExpiry": "2026-11-12T20:06:38.586Z"
-    },
-    {
       "id": 7,
       "name": "dxfcghvjblkn;m'",
       "email": "an@gmail.com",

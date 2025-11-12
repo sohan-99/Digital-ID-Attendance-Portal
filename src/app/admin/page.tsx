@@ -818,7 +818,7 @@ export default function AdminPage() {
           <Table>
             <TableHead>
               <TableRow>
-                <TableCell>ID</TableCell>
+                <TableCell>Serial</TableCell>
                 <TableCell>Name</TableCell>
                 <TableCell>Email</TableCell>
                 <TableCell>Student ID</TableCell>
@@ -829,9 +829,9 @@ export default function AdminPage() {
               </TableRow>
             </TableHead>
             <TableBody>
-              {users.map((user) => (
+              {users.map((user, index) => (
                 <TableRow key={user.id}>
-                  <TableCell>{user.id}</TableCell>
+                  <TableCell>{index + 1}</TableCell>
                   <TableCell>
                     {editUserId === user.id ? (
                       <TextField
