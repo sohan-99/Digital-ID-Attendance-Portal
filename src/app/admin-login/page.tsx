@@ -74,6 +74,9 @@ export default function AdminLogin() {
       localStorage.setItem('pundra_token', res.data.token);
       localStorage.setItem('pundra_user', JSON.stringify(user));
       
+      // Dispatch custom event to notify NavBar of auth change
+      window.dispatchEvent(new Event('authChange'));
+      
       // Try to store credentials
       try {
         if (typeof navigator !== 'undefined' && navigator.credentials && navigator.credentials.store) {

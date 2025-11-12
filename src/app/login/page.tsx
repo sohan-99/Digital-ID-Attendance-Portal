@@ -98,6 +98,9 @@ export default function LoginPage() {
       localStorage.setItem('pundra_token', res.data.token);
       localStorage.setItem('pundra_user', JSON.stringify(res.data.user));
       
+      // Dispatch custom event to notify NavBar of auth change
+      window.dispatchEvent(new Event('authChange'));
+      
       // Try to store credentials (browser feature)
       try {
         if (typeof navigator !== 'undefined' && navigator.credentials && navigator.credentials.store) {

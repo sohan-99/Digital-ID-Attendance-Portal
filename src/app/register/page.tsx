@@ -82,6 +82,9 @@ export default function RegisterPage() {
       localStorage.setItem('pundra_token', data.token)
       localStorage.setItem('pundra_user', JSON.stringify(data.user))
 
+      // Dispatch custom event to notify NavBar of auth change
+      window.dispatchEvent(new Event('authChange'))
+
       // Redirect to profile
       router.push('/profile')
     } catch (err: unknown) {

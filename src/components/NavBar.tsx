@@ -66,24 +66,67 @@ export default function NavBar() {
   const [anchorElUser, setAnchorElUser] = useState<null | HTMLElement>(null);
 
   useEffect(() => {
-    // Fetch the latest user data including profile picture
-    const token = localStorage.getItem('pundra_token');
-    if (token) {
-      axios.get('http://localhost:3000/api/users/me', {
-        headers: { Authorization: `Bearer ${token}` }
-      })
-      .then(res => {
-        const updatedUser = res.data.user;
-        setUser(updatedUser);
-        setProfilePicture(updatedUser.profilePicture);
-        // Update localStorage with latest data
-        localStorage.setItem('pundra_user', JSON.stringify(updatedUser));
-      })
-      .catch(err => {
-        console.error('Failed to fetch user data:', err);
-        // Keep the cached data on error
-      });
-    }
+    // Function to check and update user from localStorage and API
+    const checkAndUpdateUser = () => {
+      const token = localStorage.getItem('pundra_token');
+      if (token) {
+        // First, update from localStorage immediately
+        try {
+          const raw = localStorage.getItem('pundra_user');
+          if (raw) {
+            const userData = JSON.parse(raw);
+            setUser(userData);
+            setProfilePicture(userData.profilePicture || null);
+          }
+        } catch (e) {
+          console.error('Error loading user data from localStorage:', e);
+        }
+
+        // Then fetch the latest from API
+        axios.get('http://localhost:3000/api/users/me', {
+          headers: { Authorization: `Bearer ${token}` }
+        })
+        .then(res => {
+          const updatedUser = res.data.user;
+          setUser(updatedUser);
+          setProfilePicture(updatedUser.profilePicture);
+          // Update localStorage with latest data
+          localStorage.setItem('pundra_user', JSON.stringify(updatedUser));
+        })
+        .catch(err => {
+          console.error('Failed to fetch user data:', err);
+          // Keep the cached data on error
+        });
+      } else {
+        // No token, clear user state
+        setUser(null);
+        setProfilePicture(null);
+      }
+    };
+
+    // Check on mount
+    checkAndUpdateUser();
+
+    // Listen for storage events (for cross-tab updates)
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === 'pundra_token' || e.key === 'pundra_user') {
+        checkAndUpdateUser();
+      }
+    };
+
+    window.addEventListener('storage', handleStorageChange);
+
+    // Listen for custom event for same-tab updates
+    const handleAuthChange = () => {
+      checkAndUpdateUser();
+    };
+
+    window.addEventListener('authChange', handleAuthChange);
+
+    return () => {
+      window.removeEventListener('storage', handleStorageChange);
+      window.removeEventListener('authChange', handleAuthChange);
+    };
   }, []);
 
   function logout(){
