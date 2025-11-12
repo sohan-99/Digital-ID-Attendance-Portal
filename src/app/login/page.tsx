@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
+import { useRouter } from 'next/navigation';
 import axios from 'axios';
 import {
   Box,
@@ -26,21 +27,55 @@ import {
 import Link from 'next/link';
 
 export default function LoginPage() {
+  const router = useRouter();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [err, setErr] = useState<string | null>(null);
-  const [isAdminLogin, setIsAdminLogin] = useState(() => {
+  const [isRedirecting, setIsRedirecting] = useState(false);
+  const [isAdminLogin] = useState(() => {
     try {
       if (typeof window !== 'undefined') {
         const params = new URLSearchParams(window.location.search);
         return params.get('admin') ? true : false;
       }
-    } catch(e) {}
+    } catch {
+      // Ignore URL parsing errors
+    }
     return false;
   });
   const emailRef = useRef<HTMLInputElement>(null);
   const passwordRef = useRef<HTMLInputElement>(null);
+
+  // Check if user is already logged in
+  useEffect(() => {
+    const checkAuth = () => {
+      const token = localStorage.getItem('pundra_token');
+      const userStr = localStorage.getItem('pundra_user');
+
+      if (token && userStr) {
+        try {
+          const user = JSON.parse(userStr);
+          // Redirect to appropriate page based on user type
+          setIsRedirecting(true);
+          if (user.isAdmin) {
+            router.push('/admin');
+          } else {
+            router.push('/profile');
+          }
+          return true;
+        } catch (e) {
+          console.error('Error parsing user data:', e);
+          // Clear invalid data
+          localStorage.removeItem('pundra_token');
+          localStorage.removeItem('pundra_user');
+        }
+      }
+      return false;
+    };
+
+    checkAuth();
+  }, [router]);
 
   useEffect(() => {
     if (!isAdminLogin) return;
@@ -48,7 +83,9 @@ export default function LoginPage() {
       try {
         if (emailRef.current) { emailRef.current.value = ''; setEmail(''); }
         if (passwordRef.current) { passwordRef.current.value = ''; setPassword(''); }
-      } catch(e) { /* ignore */ }
+      } catch {
+        // Ignore ref errors
+      }
     }, 50);
     return () => clearTimeout(t);
   }, [isAdminLogin]);
@@ -60,23 +97,55 @@ export default function LoginPage() {
       const res = await axios.post('http://localhost:3000/api/auth/login', { email, password });
       localStorage.setItem('pundra_token', res.data.token);
       localStorage.setItem('pundra_user', JSON.stringify(res.data.user));
+      
+      // Try to store credentials (browser feature)
       try {
         if (typeof navigator !== 'undefined' && navigator.credentials && navigator.credentials.store) {
           try {
-            if ((window as any).PasswordCredential) {
-              const cred = new (window as any).PasswordCredential({ id: email, password });
+            const WindowWithCredentials = window as typeof window & {
+              PasswordCredential?: {
+                new (data: { id: string; password: string }): Credential;
+              };
+            };
+            
+            if (WindowWithCredentials.PasswordCredential) {
+              const cred = new WindowWithCredentials.PasswordCredential({ id: email, password });
               await navigator.credentials.store(cred);
-            } else {
-              await navigator.credentials.store({ id: email, password } as any);
             }
-          } catch(e) { /* ignore */ }
+          } catch {
+            // Ignore credential storage errors
+          }
         }
-      } catch(e) { /* ignore */ }
+      } catch {
+        // Ignore credential API errors
+      }
+      
       if (res.data.user && res.data.user.isAdmin) window.location.href = '/admin';
       else window.location.href = '/profile';
-    } catch(e: any) { 
-      setErr(e.response?.data?.error || 'Login failed'); 
+    } catch (error: unknown) {
+      if (axios.isAxiosError(error)) {
+        const data = error.response?.data as { error?: string } | undefined;
+        setErr(data?.error || 'Login failed');
+      } else {
+        setErr('Login failed');
+      }
     }
+  }
+
+  // Show redirecting message if already logged in
+  if (isRedirecting) {
+    return (
+      <Container maxWidth="sm">
+        <Box sx={{ py: 6, textAlign: 'center' }}>
+          <Typography variant="h6" color="primary" gutterBottom>
+            Already logged in
+          </Typography>
+          <Typography variant="body2" color="text.secondary">
+            Redirecting...
+          </Typography>
+        </Box>
+      </Container>
+    );
   }
 
   return (

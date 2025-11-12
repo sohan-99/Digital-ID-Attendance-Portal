@@ -1,6 +1,7 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import axios from 'axios';
 import {
   Box,
@@ -28,10 +29,40 @@ import {
 import Link from 'next/link';
 
 export default function AdminLogin() {
+  const router = useRouter();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const [isRedirecting, setIsRedirecting] = useState(false);
+
+  // Check if admin is already logged in
+  useEffect(() => {
+    const checkAuth = () => {
+      const token = localStorage.getItem('pundra_token');
+      const userStr = localStorage.getItem('pundra_user');
+
+      if (token && userStr) {
+        try {
+          const user = JSON.parse(userStr);
+          if (user.isAdmin) {
+            // Admin is already logged in, redirect to admin dashboard
+            setIsRedirecting(true);
+            router.push('/admin');
+            return true;
+          }
+        } catch (e) {
+          console.error('Error parsing user data:', e);
+          // Clear invalid data
+          localStorage.removeItem('pundra_token');
+          localStorage.removeItem('pundra_user');
+        }
+      }
+      return false;
+    };
+
+    checkAuth();
+  }, [router]);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -77,6 +108,22 @@ export default function AdminLogin() {
         setErr('Login failed');
       }
     }
+  }
+
+  // Show redirecting message if already logged in
+  if (isRedirecting) {
+    return (
+      <Container maxWidth="sm">
+        <Box sx={{ py: 6, textAlign: 'center' }}>
+          <Typography variant="h6" color="primary" gutterBottom>
+            Already logged in as admin
+          </Typography>
+          <Typography variant="body2" color="text.secondary">
+            Redirecting to admin dashboard...
+          </Typography>
+        </Box>
+      </Container>
+    );
   }
 
   return (

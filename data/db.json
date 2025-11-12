@@ -1,22 +1,6 @@
 {
   "users": [
     {
-      "id": 1,
-      "name": "Sohanur Rahman",
-      "email": "admin@gmail.com",
-      "passwordHash": "$2b$10$0fZzmumnZEMGvA/QDqUL1eXXPw2c1tIrPqmdlwUaMQYf4teigI1WS",
-      "isAdmin": false,
-      "profilePicture": null,
-      "studentId": "0322210105101102",
-      "program": "BA",
-      "department": "cse",
-      "batch": "20",
-      "session": "2020",
-      "bloodGroup": "AB-",
-      "qrToken": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MSwiaWF0IjoxNzYyOTc3ODk3LCJleHAiOjE3OTQ1MTM4OTd9.UNxZhAfcPoh8ShBQ3Dl_JWKaLTVuxM6OL3oh5NeE2tM",
-      "qrTokenExpiry": "2026-11-12T20:04:57.606Z"
-    },
-    {
       "id": 2,
       "name": "Sohanur Rahman",
       "email": "admin@boomdevs.com",
@@ -65,22 +49,6 @@
       "qrTokenExpiry": "2026-11-12T20:04:57.652Z"
     },
     {
-      "id": 5,
-      "name": "sohan",
-      "email": "sohan@gmail.com",
-      "passwordHash": "$2b$10$T1zIzod9K9xjkSnnXf4V6OK6pMQFrlWaFLoexcZ3nokA1XykONbre",
-      "isAdmin": false,
-      "profilePicture": null,
-      "studentId": "111111111111",
-      "program": "MSc",
-      "department": "csrr",
-      "batch": "dwefrgthjuyku",
-      "session": "fertuykil;i",
-      "bloodGroup": "AB+",
-      "qrToken": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6NSwiaWF0IjoxNzYyOTc3ODk3LCJleHAiOjE3OTQ1MTM4OTd9.F2cZRD4MegrtCMSUPfwawgyQ9WhjQNCaa5zXDv9748E",
-      "qrTokenExpiry": "2026-11-12T20:04:57.672Z"
-    },
-    {
       "id": 6,
       "name": "zrxdtfcygvuhbjk",
       "email": "adminn@gmail.com",
@@ -95,6 +63,22 @@
       "bloodGroup": "B-",
       "qrToken": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6NiwiaWF0IjoxNzYyOTc3OTk4LCJleHAiOjE3OTQ1MTM5OTh9.Fr5ztwZB8FHKthYCEeY5FLXSg6NWIfTqzCUH0gKtBpg",
       "qrTokenExpiry": "2026-11-12T20:06:38.586Z"
+    },
+    {
+      "id": 7,
+      "name": "dxfcghvjblkn;m'",
+      "email": "an@gmail.com",
+      "passwordHash": "$2b$10$.spyVICyJcrKtLgSP.TTMuw7o9CQxj0nAxs6b5Z4NPYcCQUvNpZyq",
+      "isAdmin": false,
+      "profilePicture": null,
+      "studentId": "0322210105101102",
+      "program": "B.Sc",
+      "department": "CSE",
+      "batch": "20",
+      "session": "2024 - Summer",
+      "bloodGroup": "A+",
+      "qrToken": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6NywiaWF0IjoxNzYyOTc5MDczLCJleHAiOjE3OTQ1MTUwNzN9.-pY1vw7xiPSINAgsI0_hST-b3CSqRbIZ_3g2wb5sUio",
+      "qrTokenExpiry": "2026-11-12T20:24:33.669Z"
     }
   ],
   "attendance": [
@@ -111,6 +95,6 @@
       "scannedAt": "2025-11-12T19:45:05.893Z"
     }
   ],
-  "nextUserId": 7,
+  "nextUserId": 8,
   "nextAttendanceId": 97
 }

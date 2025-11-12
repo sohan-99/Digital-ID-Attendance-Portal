@@ -58,6 +58,13 @@ export default function RegisterPage() {
       return
     }
 
+    // Validate student ID
+    if (formData.studentId && !isValidStudentId(formData.studentId)) {
+      setError('Invalid Student ID. Please enter a valid ID from the specified ranges.')
+      setLoading(false)
+      return
+    }
+
     try {
       const res = await fetch('/api/auth/register', {
         method: 'POST',
@@ -89,7 +96,42 @@ export default function RegisterPage() {
   }
 
   const bloodGroups = ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-']
-  const programs = ['BSc', 'MSc', 'BA', 'MA', 'BBA', 'MBA', 'Other']
+  const programs = ['B.Sc']
+  const departments = ['CSE']
+  const batches = ['20', '21', '22', '23', '24', '25', '26', '27']
+  const sessions = [
+    '2022 - Spring',
+    '2022 - Summer',
+    '2023 - Spring',
+    '2023 - Summer',
+    '2024 - Spring',
+    '2024 - Summer',
+    '2025 - Spring',
+    '2025 - Summer',
+  ]
+
+  // Valid student ID ranges
+  const validStudentIdRanges = [
+    { start: '0322210105101101', end: '0322210105101199' },
+    { start: '0322220105101001', end: '0322220105101099' },
+    { start: '0322310205101001', end: '0322310205101099' },
+    { start: '0322320105101001', end: '0322320105101099' },
+    { start: '0322410205101001', end: '0322410205101099' },
+    { start: '03224205101001', end: '03224205101099' },
+    { start: '03225105101001', end: '03225105101099' },
+    { start: '03225205101001', end: '03225205101099' },
+  ]
+
+  const isValidStudentId = (id: string): boolean => {
+    if (!id) return true // Allow empty for optional field
+    
+    return validStudentIdRanges.some(range => {
+      const studentIdNum = BigInt(id)
+      const startNum = BigInt(range.start)
+      const endNum = BigInt(range.end)
+      return studentIdNum >= startNum && studentIdNum <= endNum
+    })
+  }
 
   return (
     <Container maxWidth="sm">
@@ -151,6 +193,8 @@ export default function RegisterPage() {
                 value={formData.studentId}
                 onChange={handleChange}
                 fullWidth
+                helperText="Enter a valid student ID from the specified ranges"
+                error={formData.studentId !== '' && !isValidStudentId(formData.studentId)}
               />
 
               <TextField
@@ -171,28 +215,47 @@ export default function RegisterPage() {
               <TextField
                 label="Department"
                 name="department"
+                select
                 value={formData.department}
                 onChange={handleChange}
                 fullWidth
-              />
+              >
+                {departments.map((dept) => (
+                  <MenuItem key={dept} value={dept}>
+                    {dept}
+                  </MenuItem>
+                ))}
+              </TextField>
 
               <TextField
                 label="Batch"
                 name="batch"
+                select
                 value={formData.batch}
                 onChange={handleChange}
-                placeholder="e.g., 2024"
                 fullWidth
-              />
+              >
+                {batches.map((batch) => (
+                  <MenuItem key={batch} value={batch}>
+                    {batch}
+                  </MenuItem>
+                ))}
+              </TextField>
 
               <TextField
                 label="Session"
                 name="session"
+                select
                 value={formData.session}
                 onChange={handleChange}
-                placeholder="e.g., 2024-2025"
                 fullWidth
-              />
+              >
+                {sessions.map((sess) => (
+                  <MenuItem key={sess} value={sess}>
+                    {sess}
+                  </MenuItem>
+                ))}
+              </TextField>
 
               <TextField
                 label="Blood Group"
