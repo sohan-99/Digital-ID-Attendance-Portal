@@ -42,6 +42,8 @@ export default function Scanner() {
   const [selectedCamera, setSelectedCamera] = useState('');
   const cooldownRef = useRef(false);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const t = localStorage.getItem('pundra_token');
@@ -49,7 +51,34 @@ export default function Scanner() {
       window.location.href = '/login';
       return;
     }
+
+    // Check if user is admin
+    const userStr = localStorage.getItem('pundra_user');
+    if (userStr) {
+      try {
+        const user = JSON.parse(userStr);
+        if (!user.isAdmin) {
+          // Not an admin, redirect to home
+          setMsg('Access denied. Scanner is only available for administrators.');
+          setTimeout(() => {
+            window.location.href = '/';
+          }, 2000);
+          return;
+        }
+        setIsAdmin(true);
+      } catch (e) {
+        console.error('Error parsing user data:', e);
+        window.location.href = '/login';
+        return;
+      }
+    } else {
+      // No user data, redirect to login
+      window.location.href = '/login';
+      return;
+    }
+    
     setIsAuthenticated(true);
+    setLoading(false);
   }, []);
 
   useEffect(() => {
@@ -193,8 +222,39 @@ export default function Scanner() {
     setToast((t) => ({ ...t, visible: false }));
   }
 
-  if (!isAuthenticated) {
-    return null;
+  // Show loading state
+  if (loading) {
+    return (
+      <Container maxWidth="lg">
+        <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '60vh' }}>
+          <CircularProgress />
+        </Box>
+      </Container>
+    );
+  }
+
+  // Show access denied message if not admin
+  if (!isAuthenticated || !isAdmin) {
+    return (
+      <Container maxWidth="lg">
+        <Stack spacing={4} sx={{ py: 4 }}>
+          <Card elevation={3}>
+            <CardContent sx={{ textAlign: 'center', py: 6 }}>
+              <ErrorIcon sx={{ fontSize: 80, color: 'error.main', mb: 2 }} />
+              <Typography variant="h4" fontWeight={700} gutterBottom color="error">
+                Access Denied
+              </Typography>
+              <Typography variant="body1" color="text.secondary" sx={{ mb: 3 }}>
+                {msg || 'Scanner functionality is only available for administrators.'}
+              </Typography>
+              <Typography variant="body2" color="text.secondary">
+                Redirecting to home page...
+              </Typography>
+            </CardContent>
+          </Card>
+        </Stack>
+      </Container>
+    );
   }
 
   return (

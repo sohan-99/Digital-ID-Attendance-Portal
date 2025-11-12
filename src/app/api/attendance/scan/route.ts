@@ -4,6 +4,18 @@ import { verifyToken, requireAuth } from '@/lib/auth';
 
 export async function POST(request: NextRequest) {
   try {
+    // Require admin authentication for scanning
+    const authResult = requireAuth(request);
+    if ('error' in authResult) {
+      return NextResponse.json({ error: authResult.error }, { status: authResult.status });
+    }
+
+    // Check if the authenticated user is an admin
+    const scanningUser = findUserById(authResult.user.id);
+    if (!scanningUser || !scanningUser.isAdmin) {
+      return NextResponse.json({ error: 'Access denied. Only administrators can scan QR codes.' }, { status: 403 });
+    }
+
     const body = await request.json();
     const { token, location } = body;
 

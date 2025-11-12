@@ -29,6 +29,7 @@ import {
 interface User {
   name?: string;
   email?: string;
+  isAdmin?: boolean;
 }
 
 export default function Home(){
@@ -159,16 +160,18 @@ export default function Home(){
                         My Profile
                       </Button>
                     </Link>
-                    <Link href="/scanner" style={{ textDecoration: 'none' }}>
-                      <Button
-                        variant="outlined"
-                        size="large"
-                        startIcon={<QrCodeIcon />}
-                        sx={{ px: 4, py: 1.5, fontSize: '1.1rem' }}
-                      >
-                        Open Scanner
-                      </Button>
-                    </Link>
+                    {user.isAdmin && (
+                      <Link href="/scanner" style={{ textDecoration: 'none' }}>
+                        <Button
+                          variant="outlined"
+                          size="large"
+                          startIcon={<QrCodeIcon />}
+                          sx={{ px: 4, py: 1.5, fontSize: '1.1rem' }}
+                        >
+                          Open Scanner
+                        </Button>
+                      </Link>
+                    )}
                   </>
                 )}
               </Stack>

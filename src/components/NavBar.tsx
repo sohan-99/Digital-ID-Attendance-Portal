@@ -1,6 +1,7 @@
 "use client";
 
 import Link from 'next/link';
+import { usePathname } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import axios from 'axios';
 import { 
@@ -15,8 +16,6 @@ import {
   Container,
   Avatar,
   Tooltip,
-  useMediaQuery,
-  useTheme,
   Badge,
 } from '@mui/material';
 import { 
@@ -37,45 +36,53 @@ interface User {
 }
 
 export default function NavBar() {
-  const [user, setUser] = useState<User | null>(null);
-  const [profilePicture, setProfilePicture] = useState<string | null>(null);
-  const [anchorElNav, setAnchorElNav] = useState<null | HTMLElement>(null);
-  const [anchorElUser, setAnchorElUser] = useState<null | HTMLElement>(null);
-  const theme = useTheme();
-  const isMobile = useMediaQuery(theme.breakpoints.down('md'));
-
-  useEffect(() => {
-    try { 
-      const raw = localStorage.getItem('pundra_user'); 
+  const pathname = usePathname();
+  const [user, setUser] = useState<User | null>(() => {
+    // Initialize user state from localStorage on mount
+    try {
+      const raw = localStorage.getItem('pundra_user');
+      if (raw) {
+        return JSON.parse(raw);
+      }
+    } catch (e) {
+      console.error('Error loading user data:', e);
+    }
+    return null;
+  });
+  const [profilePicture, setProfilePicture] = useState<string | null>(() => {
+    // Initialize profile picture from localStorage on mount
+    try {
+      const raw = localStorage.getItem('pundra_user');
       if (raw) {
         const userData = JSON.parse(raw);
-        setUser(userData);
-        
-        // Set profile picture immediately from cache to avoid flicker
-        if (userData.profilePicture) {
-          setProfilePicture(userData.profilePicture);
-        }
-        
-        // Fetch the latest user data including profile picture
-        const token = localStorage.getItem('pundra_token');
-        if (token) {
-          axios.get('http://localhost:3000/api/users/me', {
-            headers: { Authorization: `Bearer ${token}` }
-          })
-          .then(res => {
-            const updatedUser = res.data.user;
-            setProfilePicture(updatedUser.profilePicture);
-            // Update localStorage with latest data
-            localStorage.setItem('pundra_user', JSON.stringify(updatedUser));
-          })
-          .catch(err => {
-            console.error('Failed to fetch user data:', err);
-            // Keep the cached profile picture on error
-          });
-        }
+        return userData.profilePicture || null;
       }
-    } catch(e){
-      console.error('Error loading user data:', e);
+    } catch (e) {
+      console.error('Error loading profile picture:', e);
+    }
+    return null;
+  });
+  const [anchorElNav, setAnchorElNav] = useState<null | HTMLElement>(null);
+  const [anchorElUser, setAnchorElUser] = useState<null | HTMLElement>(null);
+
+  useEffect(() => {
+    // Fetch the latest user data including profile picture
+    const token = localStorage.getItem('pundra_token');
+    if (token) {
+      axios.get('http://localhost:3000/api/users/me', {
+        headers: { Authorization: `Bearer ${token}` }
+      })
+      .then(res => {
+        const updatedUser = res.data.user;
+        setUser(updatedUser);
+        setProfilePicture(updatedUser.profilePicture);
+        // Update localStorage with latest data
+        localStorage.setItem('pundra_user', JSON.stringify(updatedUser));
+      })
+      .catch(err => {
+        console.error('Failed to fetch user data:', err);
+        // Keep the cached data on error
+      });
     }
   }, []);
 
@@ -102,12 +109,13 @@ export default function NavBar() {
     setAnchorElUser(null);
   };
 
+  // Dynamic navigation items - Hide Home when on home page, Scanner only for admins
   const navItems = [
-    { label: 'Home', href: '/', icon: <HomeIcon /> },
-    { label: 'Scanner', href: '/scanner', icon: <ScannerIcon /> },
-    { label: 'Profile', href: '/profile', icon: <PersonIcon /> },
-    { label: 'Admin', href: '/admin', icon: <AdminIcon /> },
-  ];
+    { label: 'Home', href: '/', icon: <HomeIcon />, show: pathname !== '/' },
+    { label: 'Scanner', href: '/scanner', icon: <ScannerIcon />, show: !!user && user.isAdmin },
+    { label: 'Profile', href: '/profile', icon: <PersonIcon />, show: !!user },
+    { label: 'Admin', href: '/admin', icon: <AdminIcon />, show: !!user && user.isAdmin },
+  ].filter(item => item.show);
 
   return (
     <AppBar position="sticky" color="default" elevation={2} sx={{ bgcolor: 'background.paper' }}>
