@@ -386,98 +386,100 @@ export default function Profile() {
 
                 <Divider sx={{ my: 3 }} />
 
-                <Grid container spacing={2}>
-                  {user.studentId && (
-                    <Grid item xs={12} sm={6}>
-                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                        <BadgeIcon color="primary" fontSize="small" />
-                        <Box>
-                          <Typography variant="caption" color="text.secondary">
-                            Student ID
-                          </Typography>
-                          <Typography variant="body1" fontWeight={600}>
-                            {user.studentId}
-                          </Typography>
+                {!isSuperAdmin && (
+                  <Grid container spacing={2}>
+                    {user.studentId && (
+                      <Grid item xs={12} sm={6}>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                          <BadgeIcon color="primary" fontSize="small" />
+                          <Box>
+                            <Typography variant="caption" color="text.secondary">
+                              Student ID
+                            </Typography>
+                            <Typography variant="body1" fontWeight={600}>
+                              {user.studentId}
+                            </Typography>
+                          </Box>
                         </Box>
-                      </Box>
-                    </Grid>
-                  )}
-                  {user.program && (
-                    <Grid item xs={12} sm={6}>
-                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                        <SchoolIcon color="primary" fontSize="small" />
-                        <Box>
-                          <Typography variant="caption" color="text.secondary">
-                            Program
-                          </Typography>
-                          <Typography variant="body1" fontWeight={600}>
-                            {user.program}
-                          </Typography>
+                      </Grid>
+                    )}
+                    {user.program && (
+                      <Grid item xs={12} sm={6}>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                          <SchoolIcon color="primary" fontSize="small" />
+                          <Box>
+                            <Typography variant="caption" color="text.secondary">
+                              Program
+                            </Typography>
+                            <Typography variant="body1" fontWeight={600}>
+                              {user.program}
+                            </Typography>
+                          </Box>
                         </Box>
-                      </Box>
-                    </Grid>
-                  )}
-                  {user.department && (
-                    <Grid item xs={12} sm={6}>
-                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                        <DepartmentIcon color="primary" fontSize="small" />
-                        <Box>
-                          <Typography variant="caption" color="text.secondary">
-                            Department
-                          </Typography>
-                          <Typography variant="body1" fontWeight={600}>
-                            {user.department}
-                          </Typography>
+                      </Grid>
+                    )}
+                    {user.department && (
+                      <Grid item xs={12} sm={6}>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                          <DepartmentIcon color="primary" fontSize="small" />
+                          <Box>
+                            <Typography variant="caption" color="text.secondary">
+                              Department
+                            </Typography>
+                            <Typography variant="body1" fontWeight={600}>
+                              {user.department}
+                            </Typography>
+                          </Box>
                         </Box>
-                      </Box>
-                    </Grid>
-                  )}
-                  {user.batch && (
-                    <Grid item xs={12} sm={6}>
-                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                        <GroupsIcon color="primary" fontSize="small" />
-                        <Box>
-                          <Typography variant="caption" color="text.secondary">
-                            Batch
-                          </Typography>
-                          <Typography variant="body1" fontWeight={600}>
-                            {user.batch}
-                          </Typography>
+                      </Grid>
+                    )}
+                    {user.batch && (
+                      <Grid item xs={12} sm={6}>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                          <GroupsIcon color="primary" fontSize="small" />
+                          <Box>
+                            <Typography variant="caption" color="text.secondary">
+                              Batch
+                            </Typography>
+                            <Typography variant="body1" fontWeight={600}>
+                              {user.batch}
+                            </Typography>
+                          </Box>
                         </Box>
-                      </Box>
-                    </Grid>
-                  )}
-                  {user.session && (
-                    <Grid item xs={12} sm={6}>
-                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                        <CalendarIcon color="primary" fontSize="small" />
-                        <Box>
-                          <Typography variant="caption" color="text.secondary">
-                            Session
-                          </Typography>
-                          <Typography variant="body1" fontWeight={600}>
-                            {user.session}
-                          </Typography>
+                      </Grid>
+                    )}
+                    {user.session && (
+                      <Grid item xs={12} sm={6}>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                          <CalendarIcon color="primary" fontSize="small" />
+                          <Box>
+                            <Typography variant="caption" color="text.secondary">
+                              Session
+                            </Typography>
+                            <Typography variant="body1" fontWeight={600}>
+                              {user.session}
+                            </Typography>
+                          </Box>
                         </Box>
-                      </Box>
-                    </Grid>
-                  )}
-                  {user.bloodGroup && (
-                    <Grid item xs={12} sm={6}>
-                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                        <BloodIcon color="primary" fontSize="small" />
-                        <Box>
-                          <Typography variant="caption" color="text.secondary">
-                            Blood Group
-                          </Typography>
-                          <Typography variant="body1" fontWeight={600}>
-                            {user.bloodGroup}
-                          </Typography>
+                      </Grid>
+                    )}
+                    {user.bloodGroup && (
+                      <Grid item xs={12} sm={6}>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                          <BloodIcon color="primary" fontSize="small" />
+                          <Box>
+                            <Typography variant="caption" color="text.secondary">
+                              Blood Group
+                            </Typography>
+                            <Typography variant="body1" fontWeight={600}>
+                              {user.bloodGroup}
+                            </Typography>
+                          </Box>
                         </Box>
-                      </Box>
-                    </Grid>
-                  )}
-                </Grid>
+                      </Grid>
+                    )}
+                  </Grid>
+                )}
               </Grid>
             </Grid>
           </CardContent>
@@ -586,43 +588,47 @@ export default function Profile() {
               onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
               required
             />
-            <TextField
-              label="Student ID"
-              fullWidth
-              value={editForm.studentId}
-              onChange={(e) => setEditForm({ ...editForm, studentId: e.target.value })}
-            />
-            <TextField
-              label="Program"
-              fullWidth
-              value={editForm.program}
-              onChange={(e) => setEditForm({ ...editForm, program: e.target.value })}
-            />
-            <TextField
-              label="Department"
-              fullWidth
-              value={editForm.department}
-              onChange={(e) => setEditForm({ ...editForm, department: e.target.value })}
-            />
-            <TextField
-              label="Batch"
-              fullWidth
-              value={editForm.batch}
-              onChange={(e) => setEditForm({ ...editForm, batch: e.target.value })}
-            />
-            <TextField
-              label="Session"
-              fullWidth
-              value={editForm.session}
-              onChange={(e) => setEditForm({ ...editForm, session: e.target.value })}
-            />
-            <TextField
-              label="Blood Group"
-              fullWidth
-              value={editForm.bloodGroup}
-              onChange={(e) => setEditForm({ ...editForm, bloodGroup: e.target.value })}
-              placeholder="e.g., A+, B-, O+"
-            />
+            {!isSuperAdmin && (
+              <>
+                <TextField
+                  label="Student ID"
+                  fullWidth
+                  value={editForm.studentId}
+                  onChange={(e) => setEditForm({ ...editForm, studentId: e.target.value })}
+                />
+                <TextField
+                  label="Program"
+                  fullWidth
+                  value={editForm.program}
+                  onChange={(e) => setEditForm({ ...editForm, program: e.target.value })}
+                />
+                <TextField
+                  label="Department"
+                  fullWidth
+                  value={editForm.department}
+                  onChange={(e) => setEditForm({ ...editForm, department: e.target.value })}
+                />
+                <TextField
+                  label="Batch"
+                  fullWidth
+                  value={editForm.batch}
+                  onChange={(e) => setEditForm({ ...editForm, batch: e.target.value })}
+                />
+                <TextField
+                  label="Session"
+                  fullWidth
+                  value={editForm.session}
+                  onChange={(e) => setEditForm({ ...editForm, session: e.target.value })}
+                />
+                <TextField
+                  label="Blood Group"
+                  fullWidth
+                  value={editForm.bloodGroup}
+                  onChange={(e) => setEditForm({ ...editForm, bloodGroup: e.target.value })}
+                  placeholder="e.g., A+, B-, O+"
+                />
+              </>
+            )}
           </Stack>
         </DialogContent>
         <DialogActions>
