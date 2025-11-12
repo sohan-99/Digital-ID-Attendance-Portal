@@ -35,7 +35,7 @@ export default function LoginPage() {
     e.preventDefault(); 
     setErr(null);
     try {
-      const res = await axios.post('http://localhost:3000/api/auth/login', { email, password });
+      const res = await axios.post('/api/auth/login', { email, password });
       
       // Don't allow admins to login from regular login page
       if (res.data.user && res.data.user.isAdmin) {

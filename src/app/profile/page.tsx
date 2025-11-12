@@ -109,19 +109,19 @@ export default function Profile() {
 
     (async () => {
       try {
-        const me = await axios.get('http://localhost:3000/api/users/me', {
+        const me = await axios.get('/api/users/me', {
           headers: { Authorization: `Bearer ${t}` },
         });
         setUser(me.data.user);
 
-        const q = await axios.get(`http://localhost:3000/api/users/${me.data.user.id}/qrcode-token`, {
+        const q = await axios.get(`/api/users/${me.data.user.id}/qrcode-token`, {
           headers: { Authorization: `Bearer ${t}` },
         });
         setToken(q.data.qrcodeToken);
 
         // Load attendance
         setLoadingAttendance(true);
-        const att = await axios.get(`http://localhost:3000/api/attendance?userId=${me.data.user.id}`, {
+        const att = await axios.get(`/api/attendance?userId=${me.data.user.id}`, {
           headers: { Authorization: `Bearer ${t}` },
         });
         setAttendance(att.data.rows || []);
@@ -165,7 +165,7 @@ export default function Profile() {
 
         try {
           const res = await axios.put(
-            'http://localhost:3000/api/users/me/profile-picture',
+            '/api/users/me/profile-picture',
             { profilePicture: dataUrl },
             { headers: { Authorization: `Bearer ${t}` } }
           );
@@ -226,7 +226,7 @@ export default function Profile() {
     try {
       const t = localStorage.getItem('pundra_token');
       const res = await axios.put(
-        'http://localhost:3000/api/users/me',
+        '/api/users/me',
         editForm,
         { headers: { Authorization: `Bearer ${t}` } }
       );

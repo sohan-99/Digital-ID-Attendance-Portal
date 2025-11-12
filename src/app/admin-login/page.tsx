@@ -45,7 +45,7 @@ export default function AdminLogin() {
     }
 
     axios
-      .get('http://localhost:3000/api/users/me', {
+      .get('/api/users/me', {
         headers: { Authorization: `Bearer ${token}` },
       })
       .then((res) => {
@@ -69,7 +69,7 @@ export default function AdminLogin() {
     e.preventDefault();
     setErr(null);
     try {
-      const res = await axios.post('http://localhost:3000/api/auth/login', { email, password });
+      const res = await axios.post('/api/auth/login', { email, password });
       const user = res.data.user;
       if (!user || !user.isAdmin) {
         setErr('Access denied: this page is for admins only. Please use the regular login.');

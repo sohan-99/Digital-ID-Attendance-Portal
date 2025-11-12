@@ -54,7 +54,7 @@ export default function Scanner() {
     
     // Check if user is admin
     axios
-      .get('http://localhost:3000/api/users/me', {
+      .get('/api/users/me', {
         headers: { Authorization: `Bearer ${t}` },
       })
       .then((res) => {
@@ -154,7 +154,7 @@ export default function Scanner() {
               const token = localStorage.getItem('pundra_token');
               axios
                 .post(
-                  'http://localhost:3000/api/attendance/scan',
+                  '/api/attendance/scan',
                   { token: code.data, location: 'Camera/Scanner' },
                   { headers: { Authorization: `Bearer ${token}` } }
                 )

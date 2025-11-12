@@ -70,7 +70,7 @@ export default function NavBar() {
 
     isFetchingRef.current = true;
     try {
-      const res = await axios.get('http://localhost:3000/api/users/me', {
+      const res = await axios.get('/api/users/me', {
         headers: { Authorization: `Bearer ${token}` }
       });
       const updatedUser = res.data.user;
