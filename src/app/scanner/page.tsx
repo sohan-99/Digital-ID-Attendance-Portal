@@ -29,211 +29,271 @@ import {
   CameraAlt as CameraIcon,
 } from '@mui/icons-material';
 
+
 export default function Scanner() {
   const [msg, setMsg] = useState('');
   const [running, setRunning] = useState(false);
   const [cameras, setCameras] = useState<MediaDeviceInfo[]>([]);
-  const [toast, setToast] = useState({ visible: false, message: '', type: 'info' as 'info' | 'success' | 'error' });
-  const toastTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const [selectedCamera, setSelectedCamera] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [isAdmin, setIsAdmin] = useState(false);
+
+  const [toast, setToast] = useState({ 
+    visible: false, 
+    message: '', 
+    type: 'info' as 'info' | 'success' | 'error' 
+  });
+
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const rafRef = useRef<number | null>(null);
-  const [selectedCamera, setSelectedCamera] = useState('');
+  const toastTimerRef = useRef<NodeJS.Timeout | null>(null);
   const cooldownRef = useRef(false);
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [isAdmin, setIsAdmin] = useState(false);
-  const [loading, setLoading] = useState(true);
 
+
+  // Authentication check
   useEffect(() => {
-    const t = localStorage.getItem('pundra_token');
-    if (!t) {
+    const token = localStorage.getItem('pundra_token');
+    if (!token) {
       window.location.href = '/login';
       return;
     }
 
-    // Check if user is admin
     const userStr = localStorage.getItem('pundra_user');
-    if (userStr) {
-      try {
-        const user = JSON.parse(userStr);
-        if (!user.isAdmin) {
-          // Not an admin, redirect to home
-          setMsg('Access denied. Scanner is only available for administrators.');
-          setTimeout(() => {
-            window.location.href = '/';
-          }, 2000);
-          return;
-        }
-        setIsAdmin(true);
-      } catch (e) {
-        console.error('Error parsing user data:', e);
-        window.location.href = '/login';
+    if (!userStr) {
+      window.location.href = '/login';
+      return;
+    }
+
+    try {
+      const user = JSON.parse(userStr);
+      
+      if (!user.isAdmin) {
+        setMsg('Access denied. Scanner is only available for administrators.');
+        setTimeout(() => window.location.href = '/', 2000);
         return;
       }
-    } else {
-      // No user data, redirect to login
+
+      setIsAdmin(true);
+      setIsAuthenticated(true);
+      setLoading(false);
+    } catch (e) {
+      console.error('Error parsing user data:', e);
       window.location.href = '/login';
-      return;
     }
-    
-    setIsAuthenticated(true);
-    setLoading(false);
   }, []);
 
+
+  // List available cameras
   useEffect(() => {
-    async function listCams() {
+    async function listCameras() {
       try {
         const devices = await navigator.mediaDevices.enumerateDevices();
-        const cams = devices.filter((d) => d.kind === 'videoinput');
-        setCameras(cams);
-        if (cams.length > 0) setSelectedCamera(cams[0].deviceId);
+        const videoCameras = devices.filter((d) => d.kind === 'videoinput');
+        
+        setCameras(videoCameras);
+        
+        if (videoCameras.length > 0) {
+          setSelectedCamera(videoCameras[0].deviceId);
+        }
       } catch (e) {
-        console.error('enumerateDevices failed', e);
+        console.error('Failed to list cameras', e);
         setMsg('Unable to list camera devices');
       }
     }
-    listCams();
+
+    listCameras();
   }, []);
 
-  async function start(deviceId: string) {
+
+  async function startScanning(deviceId: string) {
     try {
       setMsg('Requesting camera access...');
+
       const constraints: MediaStreamConstraints = {
         video: deviceId
-          ? { deviceId: { exact: deviceId }, width: { ideal: 1280 }, height: { ideal: 720 } }
-          : { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } },
+          ? { 
+              deviceId: { exact: deviceId }, 
+              width: { ideal: 1280 }, 
+              height: { ideal: 720 } 
+            }
+          : { 
+              facingMode: 'environment', 
+              width: { ideal: 1280 }, 
+              height: { ideal: 720 } 
+            },
       };
+
       const stream = await navigator.mediaDevices.getUserMedia(constraints);
       streamRef.current = stream;
+
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
         await videoRef.current.play();
       }
+
       setRunning(true);
       setMsg('Camera active - Position QR code in frame');
-      startLoop();
+      startScanLoop();
     } catch (err) {
-      console.error('getUserMedia error', err);
+      console.error('Camera access error', err);
       setMsg('Camera access denied or not available');
       setRunning(false);
       showToast('Camera access denied or not available', 'error');
     }
   }
 
-  function stop() {
-    if (rafRef.current) cancelAnimationFrame(rafRef.current);
-    rafRef.current = null;
+
+  function stopScanning() {
+    if (rafRef.current) {
+      cancelAnimationFrame(rafRef.current);
+      rafRef.current = null;
+    }
+
     if (streamRef.current) {
-      streamRef.current.getTracks().forEach((t) => t.stop());
+      streamRef.current.getTracks().forEach((track) => track.stop());
       streamRef.current = null;
     }
+
     if (videoRef.current) {
       videoRef.current.pause();
       videoRef.current.srcObject = null;
     }
+
     setRunning(false);
     setMsg('Scanner stopped');
   }
 
-  async function startLoop() {
+
+  async function startScanLoop() {
     const jsqrModule = await import('jsqr');
     const jsQR = jsqrModule.default || jsqrModule;
 
-    const loop = () => {
+    const scanFrame = () => {
       try {
         const video = videoRef.current;
         const canvas = canvasRef.current;
-        if (video && canvas && video.readyState === HTMLMediaElement.HAVE_ENOUGH_DATA) {
-          const w = (canvas.width = video.videoWidth);
-          const h = (canvas.height = video.videoHeight);
-          const ctx = canvas.getContext('2d');
-          if (!ctx) return;
 
-          ctx.drawImage(video, 0, 0, w, h);
-          const imageData = ctx.getImageData(0, 0, w, h);
-          const code = jsQR(imageData.data, w, h);
-          if (code) {
-            if (!cooldownRef.current) {
-              cooldownRef.current = true;
-              setMsg('QR Code detected - Verifying...');
-              const token = localStorage.getItem('pundra_token');
-              axios
-                .post(
-                  'http://localhost:3000/api/attendance/scan',
-                  { token: code.data, location: 'Camera/Scanner' },
-                  { headers: { Authorization: `Bearer ${token}` } }
-                )
-                .then(() => {
-                  setMsg('Attendance recorded successfully!');
-                  showToast('✓ Attendance recorded successfully!', 'success', true);
-                  setTimeout(() => stop(), 1500);
-                })
-                .catch((e: unknown) => {
-                  console.error('verify error', e);
-                  let errMsg = 'Verification failed';
-                  if (axios.isAxiosError(e)) {
-                    const data = e.response?.data as { error?: string } | undefined;
-                    errMsg = data?.error ?? e.message ?? errMsg;
-                  } else if (e instanceof Error) {
-                    errMsg = e.message || errMsg;
-                  } else if (typeof e === 'object' && e !== null) {
-                    try {
-                      errMsg = String(e);
-                    } catch {
-                      /* ignore */
-                    }
-                  }
-                  setMsg(errMsg);
-                  showToast(errMsg, 'error');
-                })
-                .finally(() => {
-                  setTimeout(() => {
-                    cooldownRef.current = false;
-                    if (running) setMsg('Ready for next scan');
-                  }, 2000);
-                });
-            }
-          }
+        if (!video || !canvas || video.readyState !== HTMLMediaElement.HAVE_ENOUGH_DATA) {
+          rafRef.current = requestAnimationFrame(scanFrame);
+          return;
+        }
+
+        const width = (canvas.width = video.videoWidth);
+        const height = (canvas.height = video.videoHeight);
+        const ctx = canvas.getContext('2d');
+
+        if (!ctx) {
+          rafRef.current = requestAnimationFrame(scanFrame);
+          return;
+        }
+
+        ctx.drawImage(video, 0, 0, width, height);
+        const imageData = ctx.getImageData(0, 0, width, height);
+        const qrCode = jsQR(imageData.data, width, height);
+
+        if (qrCode && !cooldownRef.current) {
+          handleQRCodeDetected(qrCode.data);
         }
       } catch (e) {
-        console.debug('scan loop error', e);
+        console.debug('Scan loop error', e);
       }
-      rafRef.current = requestAnimationFrame(loop);
+
+      rafRef.current = requestAnimationFrame(scanFrame);
     };
-    rafRef.current = requestAnimationFrame(loop);
+
+    rafRef.current = requestAnimationFrame(scanFrame);
   }
 
-  function showToast(message: string, type: 'info' | 'success' | 'error' = 'info', sticky = false) {
-    if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
-    setToast({ visible: true, message, type});
+
+  async function handleQRCodeDetected(qrData: string) {
+    cooldownRef.current = true;
+    setMsg('QR Code detected - Verifying...');
+
+    const token = localStorage.getItem('pundra_token');
+
+    try {
+      await axios.post(
+        'http://localhost:3000/api/attendance/scan',
+        { token: qrData, location: 'Camera/Scanner' },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+
+      setMsg('Attendance recorded successfully!');
+      showToast('✓ Attendance recorded successfully!', 'success', true);
+      
+      setTimeout(() => stopScanning(), 1500);
+    } catch (e: unknown) {
+      console.error('Verification error', e);
+
+      let errorMessage = 'Verification failed';
+      
+      if (axios.isAxiosError(e)) {
+        const data = e.response?.data as { error?: string } | undefined;
+        errorMessage = data?.error ?? e.message ?? errorMessage;
+      } else if (e instanceof Error) {
+        errorMessage = e.message || errorMessage;
+      }
+
+      setMsg(errorMessage);
+      showToast(errorMessage, 'error');
+    } finally {
+      setTimeout(() => {
+        cooldownRef.current = false;
+        if (running) setMsg('Ready for next scan');
+      }, 2000);
+    }
+  }
+
+
+  function showToast(
+    message: string, 
+    type: 'info' | 'success' | 'error' = 'info', 
+    sticky = false
+  ) {
+    if (toastTimerRef.current) {
+      clearTimeout(toastTimerRef.current);
+    }
+
+    setToast({ visible: true, message, type });
+
     const delay = sticky ? 5000 : 3000;
     toastTimerRef.current = setTimeout(() => {
-      setToast((t) => ({ ...t, visible: false }));
+      setToast((prev) => ({ ...prev, visible: false }));
       toastTimerRef.current = null;
     }, delay);
   }
+
 
   function hideToast() {
     if (toastTimerRef.current) {
       clearTimeout(toastTimerRef.current);
       toastTimerRef.current = null;
     }
-    setToast((t) => ({ ...t, visible: false }));
+    setToast((prev) => ({ ...prev, visible: false }));
   }
 
-  // Show loading state
+
+  // Loading state
   if (loading) {
     return (
       <Container maxWidth="lg">
-        <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '60vh' }}>
+        <Box sx={{ 
+          display: 'flex', 
+          justifyContent: 'center', 
+          alignItems: 'center', 
+          minHeight: '60vh' 
+        }}>
           <CircularProgress />
         </Box>
       </Container>
     );
   }
 
-  // Show access denied message if not admin
+
+  // Access denied state
   if (!isAuthenticated || !isAdmin) {
     return (
       <Container maxWidth="lg">
@@ -241,12 +301,15 @@ export default function Scanner() {
           <Card elevation={3}>
             <CardContent sx={{ textAlign: 'center', py: 6 }}>
               <ErrorIcon sx={{ fontSize: 80, color: 'error.main', mb: 2 }} />
+              
               <Typography variant="h4" fontWeight={700} gutterBottom color="error">
                 Access Denied
               </Typography>
+              
               <Typography variant="body1" color="text.secondary" sx={{ mb: 3 }}>
                 {msg || 'Scanner functionality is only available for administrators.'}
               </Typography>
+              
               <Typography variant="body2" color="text.secondary">
                 Redirecting to home page...
               </Typography>
@@ -257,9 +320,11 @@ export default function Scanner() {
     );
   }
 
+
   return (
     <Container maxWidth="lg">
       <Stack spacing={4} sx={{ py: 4 }}>
+        
         {/* Header Card */}
         <Card elevation={3}>
           <CardContent sx={{ textAlign: 'center', py: 4 }}>
@@ -278,19 +343,23 @@ export default function Scanner() {
             >
               <QrIcon sx={{ fontSize: 50, color: 'primary.dark' }} />
             </Box>
+
             <Typography variant="h4" fontWeight={700} gutterBottom>
               QR Code Scanner
             </Typography>
+
             <Typography variant="body1" color="text.secondary">
               Scan student QR codes for instant attendance tracking
             </Typography>
           </CardContent>
         </Card>
 
+
         {/* Scanner Control Card */}
         <Card elevation={3}>
           <CardContent sx={{ p: 4 }}>
             <Stack spacing={3}>
+              
               {/* Camera Selection */}
               <FormControl fullWidth>
                 <InputLabel id="camera-select-label">Select Camera</InputLabel>
@@ -302,14 +371,18 @@ export default function Scanner() {
                   disabled={running}
                   startAdornment={<CameraIcon sx={{ mr: 1, color: 'action.active' }} />}
                 >
-                  {cameras.length === 0 && <MenuItem value="">Loading cameras...</MenuItem>}
-                  {cameras.map((c) => (
-                    <MenuItem key={c.deviceId} value={c.deviceId}>
-                      {c.label || `Camera ${c.deviceId.substring(0, 8)}...`}
+                  {cameras.length === 0 && (
+                    <MenuItem value="">Loading cameras...</MenuItem>
+                  )}
+                  
+                  {cameras.map((camera) => (
+                    <MenuItem key={camera.deviceId} value={camera.deviceId}>
+                      {camera.label || `Camera ${camera.deviceId.substring(0, 8)}...`}
                     </MenuItem>
                   ))}
                 </Select>
               </FormControl>
+
 
               {/* Control Buttons */}
               <Stack direction="row" spacing={2} justifyContent="center">
@@ -317,24 +390,26 @@ export default function Scanner() {
                   variant="contained"
                   size="large"
                   startIcon={running ? <CircularProgress size={20} color="inherit" /> : <PlayIcon />}
-                  onClick={() => start(selectedCamera)}
+                  onClick={() => startScanning(selectedCamera)}
                   disabled={running || !selectedCamera}
                   sx={{ minWidth: 150 }}
                 >
                   {running ? 'Scanning...' : 'Start Scanner'}
                 </Button>
+
                 <Button
                   variant="outlined"
                   color="error"
                   size="large"
                   startIcon={<StopIcon />}
-                  onClick={stop}
+                  onClick={stopScanning}
                   disabled={!running}
                   sx={{ minWidth: 150 }}
                 >
                   Stop
                 </Button>
               </Stack>
+
 
               {/* Status Message */}
               {msg && (
@@ -366,9 +441,11 @@ export default function Scanner() {
                   </Alert>
                 </Fade>
               )}
+
             </Stack>
           </CardContent>
         </Card>
+
 
         {/* Video Preview Card */}
         <Card elevation={4}>
@@ -394,12 +471,13 @@ export default function Scanner() {
               onClick={() => {
                 if (!selectedCamera) return;
                 if (running) {
-                  stop();
+                  stopScanning();
                 } else {
-                  start(selectedCamera);
+                  startScanning(selectedCamera);
                 }
               }}
             >
+              
               {/* Video Element */}
               <video
                 ref={videoRef}
@@ -417,6 +495,7 @@ export default function Scanner() {
               {/* Hidden Canvas */}
               <canvas ref={canvasRef} style={{ display: 'none' }} />
 
+
               {/* Scanning Overlay */}
               <Box
                 sx={{
@@ -429,6 +508,7 @@ export default function Scanner() {
                 }}
               >
                 <Box sx={{ position: 'relative' }}>
+                  
                   {/* Scanning Frame */}
                   <Box
                     sx={{
@@ -442,6 +522,7 @@ export default function Scanner() {
                       boxShadow: running ? '0 0 20px rgba(2, 132, 199, 0.5)' : 'none',
                     }}
                   >
+                    
                     {/* Corner Markers */}
                     {[
                       { top: -4, left: -4 },
@@ -461,7 +542,9 @@ export default function Scanner() {
                         }}
                       />
                     ))}
+
                   </Box>
+
 
                   {/* Instruction Text */}
                   <Box
@@ -484,12 +567,17 @@ export default function Scanner() {
                         fontWeight: 500,
                       }}
                     >
-                      {running ? 'Position QR code inside the frame' : 'Click here or press Start to begin scanning'}
+                      {running 
+                        ? 'Position QR code inside the frame' 
+                        : 'Click here or press Start to begin scanning'
+                      }
                     </Typography>
                   </Box>
+
                 </Box>
 
-                {/* Click to Stop Hint - Only visible on hover when running */}
+
+                {/* Click to Stop Hint */}
                 {running && (
                   <Box
                     className="video-overlay-hint"
@@ -513,7 +601,9 @@ export default function Scanner() {
                     <Typography variant="caption">Click to stop</Typography>
                   </Box>
                 )}
+
               </Box>
+
 
               {/* Camera Inactive Overlay */}
               {!running && (
@@ -532,9 +622,11 @@ export default function Scanner() {
                   }}
                 >
                   <VideocamIcon sx={{ fontSize: 80, color: 'grey.500' }} />
+                  
                   <Typography variant="h6" color="grey.400">
                     Camera Inactive
                   </Typography>
+
                   {selectedCamera && (
                     <Typography
                       variant="body2"
@@ -552,10 +644,13 @@ export default function Scanner() {
                   )}
                 </Box>
               )}
+
             </Box>
           </CardContent>
         </Card>
+
       </Stack>
+
 
       {/* Toast Notification */}
       <Snackbar
@@ -568,6 +663,7 @@ export default function Scanner() {
           {toast.message}
         </Alert>
       </Snackbar>
+
     </Container>
   );
 }

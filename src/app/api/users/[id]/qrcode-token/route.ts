@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { findUserById, updateUser } from '@/lib/db';
-import { generateUserToken, requireAuth } from '@/lib/auth';
+import { generateQRToken, requireAuth } from '@/lib/auth';
 
 export async function GET(
   request: NextRequest,
@@ -34,8 +34,8 @@ export async function GET(
   const forceRefresh = request.nextUrl.searchParams.get('refresh') === 'true';
   
   if (!qrToken || !user.qrTokenExpiry || new Date(user.qrTokenExpiry) < now || forceRefresh) {
-    // Generate new token valid for 1 year (since it's for QR code, make it long-lived)
-    qrToken = generateUserToken(user, '365d');
+    // Generate new short token valid for 1 year (only contains user ID)
+    qrToken = generateQRToken(user.id, '365d');
     
     // Set expiry to 1 year from now
     const expiry = new Date();

@@ -5,15 +5,22 @@ import { Box, Typography } from '@mui/material';
 
 const QRCode = dynamic(() => import('react-qr-code'), { ssr: false });
 
+
 interface QRCodeDisplayProps {
   token?: string;
   size?: number;
 }
 
+
 export default function QRCodeDisplay({ token, size = 220 }: QRCodeDisplayProps) {
   if (!token) {
     return (
-      <Box sx={{ p: 3, textAlign: 'center', bgcolor: 'background.paper', borderRadius: 2 }}>
+      <Box sx={{ 
+        p: 3, 
+        textAlign: 'center', 
+        bgcolor: 'background.paper', 
+        borderRadius: 2 
+      }}>
         <Typography variant="body2" color="text.secondary">
           No token available
         </Typography>
@@ -22,11 +29,17 @@ export default function QRCodeDisplay({ token, size = 220 }: QRCodeDisplayProps)
   }
   
   const logoSrc = '/qr-center.png';
-  const logoPercent = 0.18; // fraction of QR size (reduced for better scanning)
+  const logoPercent = 0.18;
   const logoSize = Math.round(size * logoPercent);
   
+
   return (
-    <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+    <Box sx={{ 
+      display: 'flex', 
+      flexDirection: 'column', 
+      alignItems: 'center' 
+    }}>
+      
       <Box 
         sx={{ 
           position: 'relative', 
@@ -40,7 +53,8 @@ export default function QRCodeDisplay({ token, size = 220 }: QRCodeDisplayProps)
         <Box sx={{ width: size, height: size }}>
           <QRCode value={token} size={size} />
         </Box>
-        {/* centered logo overlay: positioned exactly at 50%/50% of the QR container */}
+
+        {/* Centered logo overlay */}
         <Box
           component="img"
           src={logoSrc}
@@ -60,9 +74,11 @@ export default function QRCodeDisplay({ token, size = 220 }: QRCodeDisplayProps)
           }}
         />
       </Box>
+
       <Typography variant="body2" color="text.secondary" sx={{ mt: 2 }}>
         Present this QR at scanners across campus.
       </Typography>
+
     </Box>
   );
 }

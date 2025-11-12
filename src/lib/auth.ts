@@ -18,6 +18,12 @@ export function generateUserToken(user: UserPayload, expiresIn: string = '6h'): 
   return jwt.sign(payload, JWT_SECRET, { expiresIn } as jwt.SignOptions);
 }
 
+export function generateQRToken(userId: number, expiresIn: string = '3d'): string {
+  // Generate a short token with only the user ID for QR codes
+  const payload = { id: userId };
+  return jwt.sign(payload, JWT_SECRET, { expiresIn } as jwt.SignOptions);
+}
+
 export function validatePassword(password: string): boolean {
   if (!password || typeof password !== 'string') return false;
   if (password.length < 6) return false;
