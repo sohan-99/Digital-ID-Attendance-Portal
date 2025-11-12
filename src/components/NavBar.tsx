@@ -129,20 +129,30 @@ export default function NavBar() {
     setAnchorElUser(null);
   };
 
-  // Memoize navigation items - only recompute when isAdmin changes
+  // Memoize navigation items - only recompute when user, isAdmin, or pathname changes
   const navItems = useMemo(() => {
-    const items = [
-      { label: 'Home', href: '/', icon: <HomeIcon key="home-icon" /> },
-      { label: 'Profile', href: '/profile', icon: <PersonIcon key="profile-icon" /> },
-    ];
+    const items = [];
     
+    // Only show Home if not on home page
+    if (pathname !== '/') {
+      items.push({ label: 'Home', href: '/', icon: <HomeIcon key="home-icon" /> });
+    }
+    
+    // Only show Profile when user is logged in
+    if (user) {
+      items.push({ label: 'Profile', href: '/profile', icon: <PersonIcon key="profile-icon" /> });
+    }
+    
+    // Show Scanner and Admin for admin users
     if (user?.isAdmin) {
-      items.splice(1, 0, { label: 'Scanner', href: '/scanner', icon: <ScannerIcon key="scanner-icon" /> });
+      // Insert Scanner after Home (or at beginning if Home is hidden)
+      const scannerIndex = pathname === '/' ? 0 : 1;
+      items.splice(scannerIndex, 0, { label: 'Scanner', href: '/scanner', icon: <ScannerIcon key="scanner-icon" /> });
       items.push({ label: 'Admin', href: '/admin', icon: <AdminIcon key="admin-icon" /> });
     }
     
     return items;
-  }, [user?.isAdmin]);
+  }, [user, user?.isAdmin, pathname]);
 
   // Don't render dynamic content until mounted
   if (!mounted) {

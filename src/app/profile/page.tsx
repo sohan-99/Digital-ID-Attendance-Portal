@@ -25,6 +25,11 @@ import {
   IconButton,
   Tooltip,
   Container,
+  TextField,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
 } from '@mui/material';
 import {
   Download as DownloadIcon,
@@ -37,6 +42,7 @@ import {
   AccessTime as TimeIcon,
   Groups as GroupsIcon,
   BusinessCenter as DepartmentIcon,
+  Edit as EditIcon,
 } from '@mui/icons-material';
 
 // Helper to draw rounded rectangle on canvas
@@ -81,6 +87,18 @@ export default function Profile() {
   const [loadingAttendance, setLoadingAttendance] = useState(false);
   const [uploadingPicture, setUploadingPicture] = useState(false);
   const [pictureError, setPictureError] = useState('');
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [editForm, setEditForm] = useState({
+    name: '',
+    studentId: '',
+    program: '',
+    department: '',
+    batch: '',
+    session: '',
+    bloodGroup: '',
+  });
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState('');
 
   useEffect(() => {
     const t = localStorage.getItem('pundra_token');
@@ -179,6 +197,59 @@ export default function Profile() {
       setUploadingPicture(false);
     }
   }
+
+  const handleEditOpen = () => {
+    if (user) {
+      setEditForm({
+        name: user.name || '',
+        studentId: user.studentId || '',
+        program: user.program || '',
+        department: user.department || '',
+        batch: user.batch || '',
+        session: user.session || '',
+        bloodGroup: user.bloodGroup || '',
+      });
+      setEditDialogOpen(true);
+      setSaveError('');
+    }
+  };
+
+  const handleEditClose = () => {
+    setEditDialogOpen(false);
+    setSaveError('');
+  };
+
+  const handleEditSave = async () => {
+    setSaving(true);
+    setSaveError('');
+    
+    try {
+      const t = localStorage.getItem('pundra_token');
+      const res = await axios.put(
+        'http://localhost:3000/api/users/me',
+        editForm,
+        { headers: { Authorization: `Bearer ${t}` } }
+      );
+      
+      setUser(res.data.user);
+      localStorage.setItem('pundra_user', JSON.stringify(res.data.user));
+      setEditDialogOpen(false);
+    } catch (e: unknown) {
+      console.error('Update error:', e);
+      if (axios.isAxiosError(e)) {
+        const data = e.response?.data as { error?: string } | undefined;
+        setSaveError(data?.error || e.message || 'Failed to update profile');
+      } else if (e instanceof Error) {
+        setSaveError(e.message);
+      } else {
+        setSaveError('Failed to update profile');
+      }
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const isSuperAdmin = user?.email === 'admin@pundra.edu' || user?.isAdmin;
 
   async function downloadQR() {
     if (!token) {
@@ -297,9 +368,18 @@ export default function Profile() {
               </Grid>
 
               <Grid item xs={12} md={8}>
-                <Typography variant="h4" fontWeight={700} gutterBottom>
-                  {user.name}
-                </Typography>
+                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1 }}>
+                  <Typography variant="h4" fontWeight={700}>
+                    {user.name}
+                  </Typography>
+                  {isSuperAdmin && (
+                    <Tooltip title="Edit Profile">
+                      <IconButton onClick={handleEditOpen} color="primary">
+                        <EditIcon />
+                      </IconButton>
+                    </Tooltip>
+                  )}
+                </Box>
                 <Typography variant="body1" color="text.secondary" gutterBottom>
                   {user.email}
                 </Typography>
@@ -488,6 +568,72 @@ export default function Profile() {
           </CardContent>
         </Card>
       </Stack>
+
+      {/* Edit Profile Dialog */}
+      <Dialog open={editDialogOpen} onClose={handleEditClose} maxWidth="sm" fullWidth>
+        <DialogTitle>Edit Profile Details</DialogTitle>
+        <DialogContent>
+          <Stack spacing={2} sx={{ mt: 2 }}>
+            {saveError && (
+              <Alert severity="error" onClose={() => setSaveError('')}>
+                {saveError}
+              </Alert>
+            )}
+            <TextField
+              label="Name"
+              fullWidth
+              value={editForm.name}
+              onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
+              required
+            />
+            <TextField
+              label="Student ID"
+              fullWidth
+              value={editForm.studentId}
+              onChange={(e) => setEditForm({ ...editForm, studentId: e.target.value })}
+            />
+            <TextField
+              label="Program"
+              fullWidth
+              value={editForm.program}
+              onChange={(e) => setEditForm({ ...editForm, program: e.target.value })}
+            />
+            <TextField
+              label="Department"
+              fullWidth
+              value={editForm.department}
+              onChange={(e) => setEditForm({ ...editForm, department: e.target.value })}
+            />
+            <TextField
+              label="Batch"
+              fullWidth
+              value={editForm.batch}
+              onChange={(e) => setEditForm({ ...editForm, batch: e.target.value })}
+            />
+            <TextField
+              label="Session"
+              fullWidth
+              value={editForm.session}
+              onChange={(e) => setEditForm({ ...editForm, session: e.target.value })}
+            />
+            <TextField
+              label="Blood Group"
+              fullWidth
+              value={editForm.bloodGroup}
+              onChange={(e) => setEditForm({ ...editForm, bloodGroup: e.target.value })}
+              placeholder="e.g., A+, B-, O+"
+            />
+          </Stack>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={handleEditClose} disabled={saving}>
+            Cancel
+          </Button>
+          <Button onClick={handleEditSave} variant="contained" disabled={saving || !editForm.name.trim()}>
+            {saving ? <CircularProgress size={24} /> : 'Save Changes'}
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Container>
   );
 }
