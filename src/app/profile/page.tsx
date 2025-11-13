@@ -25,6 +25,7 @@ import {
   IconButton,
   Tooltip,
   Container,
+  TextField,
 } from '@mui/material';
 import {
   Download as DownloadIcon,
@@ -64,6 +65,7 @@ interface User {
   batch?: string;
   session?: string;
   bloodGroup?: string;
+  emailVerified?: boolean;
 }
 
 interface AttendanceRecord {
@@ -81,39 +83,86 @@ export default function Profile() {
   const [loadingAttendance, setLoadingAttendance] = useState(false);
   const [uploadingPicture, setUploadingPicture] = useState(false);
   const [pictureError, setPictureError] = useState('');
+  const [behaviorData, setBehaviorData] = useState<any>(null);
+  const [loadingBehavior, setLoadingBehavior] = useState(false);
+  const [otp, setOtp] = useState('');
+  const [otpError, setOtpError] = useState('');
+  const [otpSuccess, setOtpSuccess] = useState('');
+  const [verifyingOtp, setVerifyingOtp] = useState(false);
+  const [resendingOtp, setResendingOtp] = useState(false);
 
   useEffect(() => {
     const t = localStorage.getItem('pundra_token');
+    console.log('[PROFILE] Token from localStorage:', t ? `${t.substring(0, 20)}...` : 'null');
+    
     if (!t) {
+      console.log('[PROFILE] No token found, redirecting to login');
       window.location.href = '/login';
       return;
     }
 
     (async () => {
       try {
-        const me = await axios.get('http://localhost:3000/api/users/me', {
+        console.log('[PROFILE] Fetching user data...');
+        const me = await axios.get('/api/users/me', {
           headers: { Authorization: `Bearer ${t}` },
         });
+        console.log('[PROFILE] User data received:', me.data.user);
         setUser(me.data.user);
 
-        const q = await axios.get(`http://localhost:3000/api/users/${me.data.user.id}/qrcode-token`, {
-          headers: { Authorization: `Bearer ${t}` },
-        });
-        setToken(q.data.qrcodeToken);
+        // Only fetch QR token if email is verified or user is admin
+        if (me.data.user.emailVerified || me.data.user.isAdmin) {
+          const q = await axios.get(`/api/users/${me.data.user.id}/qrcode-token`, {
+            headers: { Authorization: `Bearer ${t}` },
+          });
+          setToken(q.data.qrcodeToken);
+        }
 
         // Load attendance
         setLoadingAttendance(true);
-        const att = await axios.get(`http://localhost:3000/api/attendance?userId=${me.data.user.id}`, {
+        const att = await axios.get(`/api/attendance?userId=${me.data.user.id}`, {
           headers: { Authorization: `Bearer ${t}` },
         });
         setAttendance(att.data.rows || []);
+
+        // Load behavior analytics
+        setLoadingBehavior(true);
+        try {
+          const behavior = await axios.get('/api/users/me/behavior', {
+            headers: { Authorization: `Bearer ${t}` },
+          });
+          setBehaviorData(behavior.data);
+        } catch (behaviorErr) {
+          console.log('[PROFILE] Behavior analytics error:', behaviorErr);
+        } finally {
+          setLoadingBehavior(false);
+        }
       } catch (e: unknown) {
         if (axios.isAxiosError(e)) {
           const data = e.response?.data as { error?: string } | undefined;
-          setErr(data?.error || e.message || 'Failed to load');
+          const errorMsg = data?.error || e.message || 'Failed to load';
+          
+          console.log('[PROFILE] Error:', {
+            status: e.response?.status,
+            error: errorMsg,
+            data: e.response?.data
+          });
+          
+          // If unauthorized (401), clear token and redirect to login
+          if (e.response?.status === 401) {
+            console.log('[PROFILE] Unauthorized, clearing localStorage and redirecting');
+            localStorage.removeItem('pundra_token');
+            localStorage.removeItem('pundra_user');
+            window.location.href = '/login?error=session_expired';
+            return;
+          }
+          
+          setErr(errorMsg);
         } else if (e instanceof Error) {
+          console.log('[PROFILE] Error:', e.message);
           setErr(e.message);
         } else {
+          console.log('[PROFILE] Unknown error:', e);
           setErr('Failed to load');
         }
       } finally {
@@ -147,7 +196,7 @@ export default function Profile() {
 
         try {
           const res = await axios.put(
-            'http://localhost:3000/api/users/me/profile-picture',
+            '/api/users/me/profile-picture',
             { profilePicture: dataUrl },
             { headers: { Authorization: `Bearer ${t}` } }
           );
@@ -158,6 +207,15 @@ export default function Profile() {
           console.error('Upload error:', e);
           if (axios.isAxiosError(e)) {
             const data = e.response?.data as { error?: string } | undefined;
+            
+            // If unauthorized (401), clear token and redirect to login
+            if (e.response?.status === 401) {
+              localStorage.removeItem('pundra_token');
+              localStorage.removeItem('pundra_user');
+              window.location.href = '/login?error=session_expired';
+              return;
+            }
+            
             setPictureError(data?.error || e.message || 'Failed to upload picture');
           } else if (e instanceof Error) {
             setPictureError(e.message);
@@ -177,6 +235,75 @@ export default function Profile() {
       console.error('Reader error:', error);
       setPictureError('Failed to process image file');
       setUploadingPicture(false);
+    }
+  }
+
+  async function handleVerifyOtp(e: React.FormEvent) {
+    e.preventDefault();
+    setOtpError('');
+    setOtpSuccess('');
+    setVerifyingOtp(true);
+
+    try {
+      const t = localStorage.getItem('pundra_token');
+      const res = await axios.post(
+        '/api/auth/verify-otp',
+        { otp },
+        { headers: { Authorization: `Bearer ${t}` } }
+      );
+
+      setOtpSuccess('Email verified successfully! Your QR code is now available.');
+      setOtp('');
+      
+      // Update user state
+      if (user) {
+        const updatedUser = { ...user, emailVerified: true };
+        setUser(updatedUser);
+        localStorage.setItem('pundra_user', JSON.stringify(updatedUser));
+      }
+
+      // Set the QR token
+      setToken(res.data.qrToken);
+      
+      // Reload page after 2 seconds to refresh all data
+      setTimeout(() => {
+        window.location.reload();
+      }, 2000);
+    } catch (error: unknown) {
+      if (axios.isAxiosError(error)) {
+        const data = error.response?.data as { error?: string } | undefined;
+        setOtpError(data?.error || 'Failed to verify OTP');
+      } else {
+        setOtpError('Failed to verify OTP');
+      }
+    } finally {
+      setVerifyingOtp(false);
+    }
+  }
+
+  async function handleResendOtp() {
+    setOtpError('');
+    setOtpSuccess('');
+    setResendingOtp(true);
+
+    try {
+      const t = localStorage.getItem('pundra_token');
+      await axios.post(
+        '/api/auth/resend-otp',
+        {},
+        { headers: { Authorization: `Bearer ${t}` } }
+      );
+
+      setOtpSuccess('New OTP sent to your email!');
+    } catch (error: unknown) {
+      if (axios.isAxiosError(error)) {
+        const data = error.response?.data as { error?: string } | undefined;
+        setOtpError(data?.error || 'Failed to resend OTP');
+      } else {
+        setOtpError('Failed to resend OTP');
+      }
+    } finally {
+      setResendingOtp(false);
     }
   }
 
@@ -415,25 +542,156 @@ export default function Profile() {
           </CardContent>
         </Card>
 
-        {/* QR Code Card */}
+        {/* Behavior Analysis Card */}
+        {!user.isAdmin && behaviorData && behaviorData.behavior && (
+          <Card 
+            elevation={3} 
+            sx={{ 
+              bgcolor: 
+                behaviorData.behavior.category === 'Regular' ? '#e8f5e9' :
+                behaviorData.behavior.category === 'Less Regular' ? '#fff3e0' :
+                behaviorData.behavior.category === 'Irregular' ? '#ffe0b2' : '#ffebee',
+              border: 2,
+              borderColor:
+                behaviorData.behavior.category === 'Regular' ? '#4caf50' :
+                behaviorData.behavior.category === 'Less Regular' ? '#ff9800' :
+                behaviorData.behavior.category === 'Irregular' ? '#ff5722' : '#f44336'
+            }}
+          >
+            <CardContent sx={{ p: 4 }}>
+              <Typography variant="h5" fontWeight={700} gutterBottom color="primary">
+                📊 Your Attendance Behavior
+              </Typography>
+              <Alert 
+                severity={
+                  behaviorData.behavior.category === 'Regular' ? 'success' :
+                  behaviorData.behavior.category === 'Less Regular' ? 'warning' :
+                  behaviorData.behavior.category === 'Irregular' ? 'warning' : 'error'
+                }
+                sx={{ mb: 2, fontSize: '1.1rem', fontWeight: 600 }}
+              >
+                {behaviorData.behavior.message}
+              </Alert>
+              
+              <Grid container spacing={2}>
+                <Grid item xs={6} sm={3}>
+                  <Paper sx={{ p: 2, textAlign: 'center', bgcolor: 'white' }}>
+                    <Typography variant="h4" fontWeight="bold" color="success.main">
+                      {behaviorData.behavior.onTimeCount}
+                    </Typography>
+                    <Typography variant="caption">✅ On Time</Typography>
+                  </Paper>
+                </Grid>
+                <Grid item xs={6} sm={3}>
+                  <Paper sx={{ p: 2, textAlign: 'center', bgcolor: 'white' }}>
+                    <Typography variant="h4" fontWeight="bold" color="warning.main">
+                      {behaviorData.behavior.slightlyLateCount}
+                    </Typography>
+                    <Typography variant="caption">⚠️ Slightly Late</Typography>
+                  </Paper>
+                </Grid>
+                <Grid item xs={6} sm={3}>
+                  <Paper sx={{ p: 2, textAlign: 'center', bgcolor: 'white' }}>
+                    <Typography variant="h4" fontWeight="bold" color="error.main">
+                      {behaviorData.behavior.lateCount}
+                    </Typography>
+                    <Typography variant="caption">⏰ Late</Typography>
+                  </Paper>
+                </Grid>
+                <Grid item xs={6} sm={3}>
+                  <Paper sx={{ p: 2, textAlign: 'center', bgcolor: 'white' }}>
+                    <Typography variant="h4" fontWeight="bold" color="error.dark">
+                      {behaviorData.behavior.veryLateCount}
+                    </Typography>
+                    <Typography variant="caption">❌ Very Late</Typography>
+                  </Paper>
+                </Grid>
+              </Grid>
+
+              <Box sx={{ mt: 3, textAlign: 'center' }}>
+                <Typography variant="h3" fontWeight="bold" color="primary">
+                  {behaviorData.behavior.score}/100
+                </Typography>
+                <Typography variant="body2" color="text.secondary">
+                  Your Attendance Behavior Score
+                </Typography>
+              </Box>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* QR Code Card or OTP Verification Card */}
         <Card elevation={3}>
           <CardContent sx={{ p: 4 }}>
             <Typography variant="h5" fontWeight={700} gutterBottom>
               Your Digital ID (QR)
             </Typography>
-            <Grid container spacing={3} alignItems="center">
-              <Grid item xs={12} md={6} sx={{ display: 'flex', justifyContent: 'center' }}>
-                <QRCodeDisplay token={token ?? undefined} />
+            
+            {/* Show OTP verification for non-admin users with unverified email */}
+            {!user.isAdmin && !user.emailVerified ? (
+              <Box>
+                <Alert severity="info" sx={{ mb: 3 }}>
+                  Please verify your email to access your QR code. We've sent a verification code to <strong>{user.email}</strong>
+                </Alert>
+                
+                <Box component="form" onSubmit={handleVerifyOtp} sx={{ maxWidth: 500, mx: 'auto' }}>
+                  <Stack spacing={2}>
+                    <TextField
+                      label="Enter OTP"
+                      value={otp}
+                      onChange={(e) => setOtp(e.target.value)}
+                      placeholder="Enter 6-digit code"
+                      required
+                      fullWidth
+                      inputProps={{ maxLength: 6, pattern: '[0-9]*' }}
+                      disabled={verifyingOtp}
+                    />
+                    
+                    {otpError && <Alert severity="error">{otpError}</Alert>}
+                    {otpSuccess && <Alert severity="success">{otpSuccess}</Alert>}
+                    
+                    <Button
+                      type="submit"
+                      variant="contained"
+                      size="large"
+                      fullWidth
+                      disabled={verifyingOtp || otp.length !== 6}
+                    >
+                      {verifyingOtp ? <CircularProgress size={24} /> : 'Verify Email'}
+                    </Button>
+                    
+                    <Button
+                      variant="outlined"
+                      size="medium"
+                      fullWidth
+                      onClick={handleResendOtp}
+                      disabled={resendingOtp}
+                    >
+                      {resendingOtp ? <CircularProgress size={20} /> : 'Resend OTP'}
+                    </Button>
+                    
+                    <Typography variant="caption" color="text.secondary" textAlign="center">
+                      OTP is valid for 15 minutes. If you didn't receive it, check your spam folder or click resend.
+                    </Typography>
+                  </Stack>
+                </Box>
+              </Box>
+            ) : (
+              /* Show QR code for verified users and admins */
+              <Grid container spacing={3} alignItems="center">
+                <Grid item xs={12} md={6} sx={{ display: 'flex', justifyContent: 'center' }}>
+                  <QRCodeDisplay token={token ?? undefined} />
+                </Grid>
+                <Grid item xs={12} md={6}>
+                  <Typography variant="body1" color="text.secondary" paragraph>
+                    Use this QR code for attendance scanning at lecture halls, library, and campus events.
+                  </Typography>
+                  <Button variant="contained" startIcon={<DownloadIcon />} onClick={downloadQR} size="large" fullWidth>
+                    Download QR Code
+                  </Button>
+                </Grid>
               </Grid>
-              <Grid item xs={12} md={6}>
-                <Typography variant="body1" color="text.secondary" paragraph>
-                  Use this QR code for attendance scanning at lecture halls, library, and campus events.
-                </Typography>
-                <Button variant="contained" startIcon={<DownloadIcon />} onClick={downloadQR} size="large" fullWidth>
-                  Download QR Code
-                </Button>
-              </Grid>
-            </Grid>
+            )}
           </CardContent>
         </Card>
 

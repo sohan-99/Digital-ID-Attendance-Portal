@@ -1,9 +1,8 @@
-import fs from 'fs';
-import path from 'path';
-
-const DB_PATH = path.join(process.cwd(), 'data', 'db.json');
+import { getDatabase, COLLECTIONS } from './mongodb';
+import { ObjectId } from 'mongodb';
 
 interface User {
+  _id?: ObjectId;
   id: number;
   name: string;
   email: string;
@@ -18,80 +17,106 @@ interface User {
   bloodGroup?: string | null;
   qrToken?: string | null;
   qrTokenExpiry?: string | null;
+  // OTP verification fields
+  emailVerified?: boolean;
+  otp?: string | null;
+  otpExpiry?: Date | null;
+  // Scanner admin fields
+  isScannerAdmin?: boolean;
+  scannerLocation?: 'Campus' | 'Library' | 'Event' | 'All' | null;
+  isSuperScanner?: boolean;
 }
 
 interface ScannerAdmin {
+  _id?: ObjectId;
   id: number;
   username: string;
   passwordHash: string;
-  location: 'Campus' | 'Library' | 'Event';
+  location: 'Campus' | 'Library' | 'Event' | 'All';
   name: string;
   createdAt: string;
+  isSuperAdmin?: boolean;
 }
 
 interface Attendance {
+  _id?: ObjectId;
   id: number;
   userId: number;
   location: string | null;
   scannedAt: string;
-  scannedBy?: number | null; // Scanner admin ID
-  scannerLocation?: string | null; // Location where scan occurred
+  scannedBy?: number | null;
+  scannerLocation?: string | null;
   user?: User;
 }
 
-interface Database {
-  users: User[];
-  scannerAdmins: ScannerAdmin[];
-  attendance: Attendance[];
-  nextUserId: number;
-  nextScannerAdminId: number;
-  nextAttendanceId: number;
+interface Counter {
+  _id: string;
+  seq: number;
 }
 
-function ensureDataDir() {
-  const dataDir = path.join(process.cwd(), 'data');
-  if (!fs.existsSync(dataDir)) {
-    fs.mkdirSync(dataDir, { recursive: true });
+interface ScannerLoginLog {
+  _id?: ObjectId;
+  id: number;
+  username: string;
+  location: string;
+  success: boolean;
+  errorMessage?: string;
+  ipAddress?: string;
+  userAgent?: string;
+  timestamp: string;
+  scannerAdminId?: number;
+}
+
+// Helper function to get next ID
+async function getNextSequence(sequenceName: string): Promise<number> {
+  const db = await getDatabase();
+  const result = await db.collection<Counter>(COLLECTIONS.COUNTERS).findOneAndUpdate(
+    { _id: sequenceName },
+    { $inc: { seq: 1 } },
+    { upsert: true, returnDocument: 'after' }
+  );
+  return result?.seq || 1;
+}
+
+// Initialize database
+export async function init(): Promise<void> {
+  const db = await getDatabase();
+  
+  // Create indexes
+  await db.collection(COLLECTIONS.USERS).createIndex({ email: 1 }, { unique: true });
+  await db.collection(COLLECTIONS.USERS).createIndex({ id: 1 }, { unique: true });
+  await db.collection(COLLECTIONS.SCANNER_ADMINS).createIndex({ username: 1 }, { unique: true });
+  await db.collection(COLLECTIONS.SCANNER_ADMINS).createIndex({ id: 1 }, { unique: true });
+  await db.collection(COLLECTIONS.ATTENDANCE).createIndex({ userId: 1 });
+  await db.collection(COLLECTIONS.ATTENDANCE).createIndex({ scannedAt: -1 });
+  await db.collection(COLLECTIONS.ATTENDANCE).createIndex({ scannerLocation: 1 });
+  
+  // Create default admin if not exists
+  await ensureDefaultAdmin();
+}
+
+// Ensure default admin exists
+async function ensureDefaultAdmin(): Promise<void> {
+  const bcrypt = await import('bcryptjs');
+  const defaultAdminEmail = 'admin@pundra.edu';
+  
+  const existing = await findUserByEmail(defaultAdminEmail);
+  
+  if (!existing) {
+    const passwordHash = await bcrypt.hash('Admin@123', 10);
+    await addUser({
+      name: 'Super Admin',
+      email: defaultAdminEmail,
+      passwordHash,
+      isAdmin: true,
+      emailVerified: true, // Admins are pre-verified
+    });
+    console.log('✅ Default admin account created:', defaultAdminEmail);
   }
 }
 
-function load(): Database {
-  try {
-    ensureDataDir();
-    const raw = fs.readFileSync(DB_PATH, 'utf8');
-    const data = JSON.parse(raw);
-    // Ensure scannerAdmins array exists for backward compatibility
-    if (!data.scannerAdmins) {
-      data.scannerAdmins = [];
-    }
-    if (!data.nextScannerAdminId) {
-      data.nextScannerAdminId = 1;
-    }
-    return data;
-  } catch {
-    return { 
-      users: [], 
-      scannerAdmins: [],
-      attendance: [], 
-      nextUserId: 1, 
-      nextScannerAdminId: 1,
-      nextAttendanceId: 1 
-    };
-  }
-}
-
-function save(db: Database): void {
-  ensureDataDir();
-  fs.writeFileSync(DB_PATH, JSON.stringify(db, null, 2), 'utf8');
-}
-
-export function init(): Database {
-  const db = load();
-  save(db);
-  return db;
-}
-
-export function addUser(data: {
+// User functions
+export async function addUser(data: {
   name: string;
   email: string;
   passwordHash: string;
@@ -103,9 +128,13 @@ export function addUser(data: {
   batch?: string | null;
   session?: string | null;
   bloodGroup?: string | null;
-}): User {
-  const db = load();
-  const id = db.nextUserId++;
+  emailVerified?: boolean;
+  otp?: string | null;
+  otpExpiry?: Date | null;
+}): Promise<User> {
+  const db = await getDatabase();
+  const id = await getNextSequence('userId');
+  
   const user: User = {
     id,
     name: data.name,
@@ -119,72 +148,82 @@ export function addUser(data: {
     batch: data.batch || null,
     session: data.session || null,
     bloodGroup: data.bloodGroup || null,
+    emailVerified: data.emailVerified || false,
+    otp: data.otp || null,
+    otpExpiry: data.otpExpiry || null,
   };
-  db.users.push(user);
-  save(db);
+  
+  await db.collection<User>(COLLECTIONS.USERS).insertOne(user);
   return user;
 }
 
-export function updateUser(
+export async function updateUser(
   id: number,
   data: Partial<Omit<User, 'id'>>
-): User | null {
-  const db = load();
-  const idx = db.users.findIndex((u) => u.id === id);
-  if (idx === -1) return null;
-  const user = db.users[idx];
+): Promise<User | null> {
+  const db = await getDatabase();
+  const updateData: Partial<User> = {};
   
-  if (data.name !== undefined) user.name = data.name;
-  if (data.email !== undefined) user.email = data.email;
-  if (data.passwordHash !== undefined) user.passwordHash = data.passwordHash;
-  if (data.isAdmin !== undefined) user.isAdmin = !!data.isAdmin;
-  if (data.profilePicture !== undefined) user.profilePicture = data.profilePicture;
-  if (data.studentId !== undefined) user.studentId = data.studentId;
-  if (data.program !== undefined) user.program = data.program;
-  if (data.department !== undefined) user.department = data.department;
-  if (data.batch !== undefined) user.batch = data.batch;
-  if (data.session !== undefined) user.session = data.session;
-  if (data.bloodGroup !== undefined) user.bloodGroup = data.bloodGroup;
-  if (data.qrToken !== undefined) user.qrToken = data.qrToken;
-  if (data.qrTokenExpiry !== undefined) user.qrTokenExpiry = data.qrTokenExpiry;
+  if (data.name !== undefined) updateData.name = data.name;
+  if (data.email !== undefined) updateData.email = data.email;
+  if (data.passwordHash !== undefined) updateData.passwordHash = data.passwordHash;
+  if (data.isAdmin !== undefined) updateData.isAdmin = !!data.isAdmin;
+  if (data.profilePicture !== undefined) updateData.profilePicture = data.profilePicture;
+  if (data.studentId !== undefined) updateData.studentId = data.studentId;
+  if (data.program !== undefined) updateData.program = data.program;
+  if (data.department !== undefined) updateData.department = data.department;
+  if (data.batch !== undefined) updateData.batch = data.batch;
+  if (data.session !== undefined) updateData.session = data.session;
+  if (data.bloodGroup !== undefined) updateData.bloodGroup = data.bloodGroup;
+  if (data.qrToken !== undefined) updateData.qrToken = data.qrToken;
+  if (data.qrTokenExpiry !== undefined) updateData.qrTokenExpiry = data.qrTokenExpiry;
+  if (data.emailVerified !== undefined) updateData.emailVerified = data.emailVerified;
+  if (data.otp !== undefined) updateData.otp = data.otp;
+  if (data.otpExpiry !== undefined) updateData.otpExpiry = data.otpExpiry;
   
-  db.users[idx] = user;
-  save(db);
-  return user;
+  const result = await db.collection<User>(COLLECTIONS.USERS).findOneAndUpdate(
+    { id },
+    { $set: updateData },
+    { returnDocument: 'after' }
+  );
+  
+  return result || null;
 }
 
-export function deleteUser(id: number): boolean {
-  const db = load();
-  const idx = db.users.findIndex((u) => u.id === id);
-  if (idx === -1) return false;
-  db.users.splice(idx, 1);
-  save(db);
-  return true;
+export async function deleteUser(id: number): Promise<boolean> {
+  const db = await getDatabase();
+  const result = await db.collection<User>(COLLECTIONS.USERS).deleteOne({ id });
+  return result.deletedCount > 0;
 }
 
-export function findUserByEmail(email: string): User | undefined {
-  const db = load();
-  return db.users.find((u) => u.email === email);
+export async function findUserByEmail(email: string): Promise<User | undefined> {
+  const db = await getDatabase();
+  const user = await db.collection<User>(COLLECTIONS.USERS).findOne({ email });
+  return user || undefined;
 }
 
-export function findUserById(id: number): User | undefined {
-  const db = load();
-  return db.users.find((u) => u.id === id);
+export async function findUserById(id: number): Promise<User | undefined> {
+  const db = await getDatabase();
+  const user = await db.collection<User>(COLLECTIONS.USERS).findOne({ id });
+  return user || undefined;
 }
 
-export function allUsers(): User[] {
-  return load().users;
+export async function allUsers(): Promise<User[]> {
+  const db = await getDatabase();
+  return await db.collection<User>(COLLECTIONS.USERS).find({}).toArray();
 }
 
-export function addAttendance(data: {
+// Attendance functions
+export async function addAttendance(data: {
   userId: number;
   location?: string | null;
   scannedAt?: Date;
   scannedBy?: number | null;
   scannerLocation?: string | null;
-}): Attendance {
-  const db = load();
-  const id = db.nextAttendanceId++;
+}): Promise<Attendance> {
+  const db = await getDatabase();
+  const id = await getNextSequence('attendanceId');
+  
   const rec: Attendance = {
     id,
     userId: data.userId,
@@ -193,34 +232,46 @@ export function addAttendance(data: {
     scannedBy: data.scannedBy || null,
     scannerLocation: data.scannerLocation || null,
   };
-  db.attendance.push(rec);
-  save(db);
+  
+  await db.collection<Attendance>(COLLECTIONS.ATTENDANCE).insertOne(rec);
   return rec;
 }
 
-export function getAttendance(filter?: { userId?: number }): Attendance[] {
-  const db = load();
-  let rows = db.attendance.slice().reverse();
+export async function getAttendance(filter?: { userId?: number }): Promise<Attendance[]> {
+  const db = await getDatabase();
+  const query: any = {};
+  
   if (filter?.userId) {
-    rows = rows.filter((r) => r.userId === filter.userId);
+    query.userId = filter.userId;
   }
+  
+  const records = await db.collection<Attendance>(COLLECTIONS.ATTENDANCE)
+    .find(query)
+    .sort({ scannedAt: -1 })
+    .toArray();
+  
   // Join user data
-  return rows.map((r) => ({
+  const users = await db.collection<User>(COLLECTIONS.USERS).find({}).toArray();
+  const userMap = new Map(users.map(u => [u.id, u]));
+  
+  return records.map(r => ({
     ...r,
-    user: db.users.find((u) => u.id === r.userId),
+    user: userMap.get(r.userId),
   }));
 }
 
-export function countUsers(): number {
-  return load().users.length;
+export async function countUsers(): Promise<number> {
+  const db = await getDatabase();
+  return await db.collection(COLLECTIONS.USERS).countDocuments();
 }
 
-export function countAttendance(): number {
-  return load().attendance.length;
+export async function countAttendance(): Promise<number> {
+  const db = await getDatabase();
+  return await db.collection(COLLECTIONS.ATTENDANCE).countDocuments();
 }
 
-export function recentCounts(days = 7): Array<{ day: string; cnt: number }> {
-  const db = load();
+export async function recentCounts(days = 7): Promise<Array<{ day: string; cnt: number }>> {
+  const db = await getDatabase();
   const map: Record<string, number> = {};
   
   for (let i = 0; i < days; i++) {
@@ -230,7 +281,9 @@ export function recentCounts(days = 7): Array<{ day: string; cnt: number }> {
     map[key] = 0;
   }
   
-  db.attendance.forEach((r) => {
+  const records = await db.collection<Attendance>(COLLECTIONS.ATTENDANCE).find({}).toArray();
+  
+  records.forEach((r) => {
     const day = r.scannedAt.slice(0, 10);
     if (map.hasOwnProperty(day)) map[day]++;
   });
@@ -239,72 +292,197 @@ export function recentCounts(days = 7): Array<{ day: string; cnt: number }> {
 }
 
 // Scanner Admin functions
-export function addScannerAdmin(data: {
+export async function addScannerAdmin(data: {
   username: string;
   passwordHash: string;
-  location: 'Campus' | 'Library' | 'Event';
+  location: 'Campus' | 'Library' | 'Event' | 'All';
   name: string;
-}): ScannerAdmin {
-  const db = load();
-  const id = db.nextScannerAdminId++;
-  const scannerAdmin: ScannerAdmin = {
-    id,
-    username: data.username,
-    passwordHash: data.passwordHash,
-    location: data.location,
-    name: data.name,
-    createdAt: new Date().toISOString(),
-  };
-  db.scannerAdmins.push(scannerAdmin);
-  save(db);
-  return scannerAdmin;
-}
-
-export function findScannerAdminByUsername(username: string): ScannerAdmin | undefined {
-  const db = load();
-  return db.scannerAdmins.find((s) => s.username === username);
-}
-
-export function findScannerAdminById(id: number): ScannerAdmin | undefined {
-  const db = load();
-  return db.scannerAdmins.find((s) => s.id === id);
-}
-
-export function allScannerAdmins(): ScannerAdmin[] {
-  return load().scannerAdmins;
-}
-
-export function getAttendanceByLocation(location: string): Attendance[] {
-  const db = load();
-  const rows = db.attendance
-    .filter((r) => r.scannerLocation === location)
-    .slice()
-    .reverse();
+  isSuperAdmin?: boolean;
+}): Promise<ScannerAdmin> {
+  const db = await getDatabase();
+  const id = await getNextSequence('userId'); // Use user ID sequence
   
-  // Join user data
-  return rows.map((r) => ({
-    ...r,
-    user: db.users.find((u) => u.id === r.userId),
+  // Create scanner admin as a user with scanner flags
+  const user: User = {
+    id,
+    email: data.username, // Username becomes email
+    name: data.name,
+    passwordHash: data.passwordHash,
+    isAdmin: false,
+    isScannerAdmin: true,
+    scannerLocation: data.location,
+    isSuperScanner: data.isSuperAdmin || false,
+    studentId: null,
+    program: null,
+    department: null,
+    batch: null,
+    session: null,
+    bloodGroup: null,
+    profilePicture: null,
+    qrToken: null,
+    qrTokenExpiry: null,
+  };
+  
+  await db.collection<User>(COLLECTIONS.USERS).insertOne(user);
+  
+  // Return in ScannerAdmin format for backward compatibility
+  return {
+    id: user.id,
+    username: user.email,
+    passwordHash: user.passwordHash,
+    location: data.location,
+    name: user.name,
+    createdAt: new Date().toISOString(),
+    isSuperAdmin: data.isSuperAdmin || false,
+  };
+}
+
+export async function findScannerAdminByUsername(username: string): Promise<ScannerAdmin | undefined> {
+  const db = await getDatabase();
+  // Scanner admins are now stored in users collection with isScannerAdmin flag
+  // Username can be either email or the name field for backward compatibility
+  const user = await db.collection<User>(COLLECTIONS.USERS).findOne({
+    isScannerAdmin: true,
+    $or: [{ email: username }, { name: username }]
+  });
+  
+  if (!user) return undefined;
+  
+  // Convert User to ScannerAdmin format for backward compatibility
+  return {
+    id: user.id,
+    username: user.email,
+    passwordHash: user.passwordHash,
+    location: (user.scannerLocation || 'Campus') as 'Campus' | 'Library' | 'Event' | 'All',
+    name: user.name,
+    createdAt: new Date().toISOString(),
+    isSuperAdmin: user.isSuperScanner || false,
+  };
+}
+
+export async function findScannerAdminById(id: number): Promise<ScannerAdmin | undefined> {
+  const db = await getDatabase();
+  const user = await db.collection<User>(COLLECTIONS.USERS).findOne({ 
+    id,
+    isScannerAdmin: true 
+  });
+  
+  if (!user) return undefined;
+  
+  return {
+    id: user.id,
+    username: user.email,
+    passwordHash: user.passwordHash,
+    location: (user.scannerLocation || 'Campus') as 'Campus' | 'Library' | 'Event' | 'All',
+    name: user.name,
+    createdAt: new Date().toISOString(),
+    isSuperAdmin: user.isSuperScanner || false,
+  };
+}
+
+export async function allScannerAdmins(): Promise<ScannerAdmin[]> {
+  const db = await getDatabase();
+  const users = await db.collection<User>(COLLECTIONS.USERS).find({ isScannerAdmin: true }).toArray();
+  
+  return users.map(user => ({
+    id: user.id,
+    username: user.email,
+    passwordHash: user.passwordHash,
+    location: (user.scannerLocation || 'Campus') as 'Campus' | 'Library' | 'Event' | 'All',
+    name: user.name,
+    createdAt: new Date().toISOString(),
+    isSuperAdmin: user.isSuperScanner || false,
   }));
 }
 
-export function getTodayAttendanceByLocation(location: string): Attendance[] {
-  const db = load();
+export async function getAttendanceByLocation(location: string): Promise<Attendance[]> {
+  const db = await getDatabase();
+  const records = await db.collection<Attendance>(COLLECTIONS.ATTENDANCE)
+    .find({ scannerLocation: location })
+    .sort({ scannedAt: -1 })
+    .toArray();
+  
+  // Join user data
+  const users = await db.collection<User>(COLLECTIONS.USERS).find({}).toArray();
+  const userMap = new Map(users.map(u => [u.id, u]));
+  
+  return records.map(r => ({
+    ...r,
+    user: userMap.get(r.userId),
+  }));
+}
+
+export async function getTodayAttendanceByLocation(location: string): Promise<Attendance[]> {
+  const db = await getDatabase();
   const today = new Date().toISOString().slice(0, 10);
   
-  const rows = db.attendance
-    .filter((r) => {
-      const recordDate = r.scannedAt.slice(0, 10);
-      return r.scannerLocation === location && recordDate === today;
-    })
-    .slice()
-    .reverse();
+  const records = await db.collection<Attendance>(COLLECTIONS.ATTENDANCE)
+    .find({ scannerLocation: location })
+    .sort({ scannedAt: -1 })
+    .toArray();
+  
+  const todayRecords = records.filter(r => {
+    const recordDate = r.scannedAt.slice(0, 10);
+    return recordDate === today;
+  });
   
   // Join user data
-  return rows.map((r) => ({
+  const users = await db.collection<User>(COLLECTIONS.USERS).find({}).toArray();
+  const userMap = new Map(users.map(u => [u.id, u]));
+  
+  return todayRecords.map(r => ({
     ...r,
-    user: db.users.find((u) => u.id === r.userId),
+    user: userMap.get(r.userId),
   }));
 }
 
-export type { User, ScannerAdmin, Attendance, Database };
+// Scanner login log functions
+export async function logScannerLogin(data: {
+  username: string;
+  location: string;
+  success: boolean;
+  errorMessage?: string;
+  ipAddress?: string;
+  userAgent?: string;
+  scannerAdminId?: number;
+}): Promise<ScannerLoginLog> {
+  const db = await getDatabase();
+  const id = await getNextSequence('scannerLoginLog');
+  
+  const log: ScannerLoginLog = {
+    id,
+    username: data.username,
+    location: data.location,
+    success: data.success,
+    errorMessage: data.errorMessage,
+    ipAddress: data.ipAddress,
+    userAgent: data.userAgent,
+    scannerAdminId: data.scannerAdminId,
+    timestamp: new Date().toISOString(),
+  };
+  
+  await db.collection<ScannerLoginLog>(COLLECTIONS.SCANNER_LOGIN_LOGS).insertOne(log);
+  return log;
+}
+
+export async function getScannerLoginLogs(filter?: {
+  username?: string;
+  success?: boolean;
+  limit?: number;
+}): Promise<ScannerLoginLog[]> {
+  const db = await getDatabase();
+  
+  const query: any = {};
+  if (filter?.username) query.username = filter.username;
+  if (filter?.success !== undefined) query.success = filter.success;
+  
+  const logs = await db.collection<ScannerLoginLog>(COLLECTIONS.SCANNER_LOGIN_LOGS)
+    .find(query)
+    .sort({ timestamp: -1 })
+    .limit(filter?.limit || 100)
+    .toArray();
+  
+  return logs;
+}
+
+export type { User, ScannerAdmin, Attendance, ScannerLoginLog };

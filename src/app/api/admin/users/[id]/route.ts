@@ -18,7 +18,7 @@ export async function PUT(
     const body = await request.json();
     const { name, email, password, isAdmin, studentId, program, department, batch, session, bloodGroup } = body;
 
-    const existing = findUserById(id);
+    const existing = await findUserById(id);
     if (!existing) {
       return NextResponse.json({ error: 'User not found' }, { status: 404 });
     }
@@ -29,7 +29,7 @@ export async function PUT(
     }
 
     if (email && email !== existing.email) {
-      const dup = findUserByEmail(email);
+      const dup = await findUserByEmail(email);
       if (dup) {
         return NextResponse.json({ error: 'Email exists' }, { status: 400 });
       }
@@ -43,7 +43,7 @@ export async function PUT(
     }
 
     const passwordHash = password ? hashPassword(password) : undefined;
-    const updated = updateUser(id, {
+    const updated = await updateUser(id, {
       name,
       email,
       passwordHash,
@@ -89,7 +89,7 @@ export async function DELETE(
   const id = parseInt(resolvedParams.id, 10);
 
   try {
-    const target = findUserById(id);
+    const target = await findUserById(id);
     if (!target) {
       return NextResponse.json({ error: 'User not found' }, { status: 404 });
     }
@@ -102,7 +102,7 @@ export async function DELETE(
       return NextResponse.json({ error: 'Cannot delete yourself' }, { status: 400 });
     }
 
-    const ok = deleteUser(id);
+    const ok = await deleteUser(id);
     if (!ok) {
       return NextResponse.json({ error: 'User not found' }, { status: 404 });
     }

@@ -13,7 +13,7 @@ export async function GET(
 
   const resolvedParams = await params;
   const targetId = parseInt(resolvedParams.id, 10);
-  const user = findUserById(targetId);
+  const user = await findUserById(targetId);
   
   if (!user) {
     return NextResponse.json({ error: 'User not found' }, { status: 404 });
@@ -21,6 +21,11 @@ export async function GET(
 
   if (authResult.user.id !== user.id && !authResult.user.isAdmin) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  }
+
+  // Check if email is verified (skip for admins)
+  if (!user.isAdmin && !user.emailVerified) {
+    return NextResponse.json({ error: 'Email not verified', emailVerified: false }, { status: 403 });
   }
 
   // Check if user has a valid QR token
@@ -42,7 +47,7 @@ export async function GET(
     expiry.setFullYear(expiry.getFullYear() + 1);
     
     // Update user with new token and expiry
-    updateUser(targetId, {
+    await updateUser(targetId, {
       qrToken,
       qrTokenExpiry: expiry.toISOString(),
     });

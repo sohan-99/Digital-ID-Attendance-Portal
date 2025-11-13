@@ -11,7 +11,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Check if the authenticated user is an admin
-    const scanningUser = findUserById(authResult.user.id);
+    const scanningUser = await findUserById(authResult.user.id);
     if (!scanningUser || !scanningUser.isAdmin) {
       return NextResponse.json({ error: 'Access denied. Only administrators can scan QR codes.' }, { status: 403 });
     }
@@ -38,19 +38,21 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid or expired token' }, { status: 400 });
     }
 
-    const user = findUserById(userId);
+    const user = await findUserById(userId);
     
     if (!user) {
       return NextResponse.json({ error: 'User not found' }, { status: 404 });
     }
 
     // Quick duplicate check (optimized - only last 5 minutes)
+    // Check both location and scannerLocation for compatibility
     const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
-    const recentAttendance = getAttendance({ userId });
+    const recentAttendance = await getAttendance({ userId });
     
     const recentScan = recentAttendance.find(att => {
       const scannedAt = new Date(att.scannedAt);
-      return scannedAt > fiveMinutesAgo && att.location === location;
+      const attLocation = att.scannerLocation || att.location;
+      return scannedAt > fiveMinutesAgo && attLocation === location;
     });
 
     if (recentScan) {
@@ -60,10 +62,12 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Record attendance
-    const attendance = addAttendance({
+    // Record attendance - save location in BOTH fields for cross-compatibility
+    const attendance = await addAttendance({
       userId: user.id,
       location: location || null,
+      scannedBy: scanningUser.id,
+      scannerLocation: location || null,
       scannedAt: new Date(),
     });
 

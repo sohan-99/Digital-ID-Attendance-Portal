@@ -18,7 +18,7 @@ export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const days = parseInt(searchParams.get('days') || '7', 10);
 
-  const all = getAttendance();
+  const all = await getAttendance();
   
   // Create array of dates for the last N days
   const labels: string[] = [];

@@ -24,7 +24,7 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json({ error: 'Image too large. Maximum 5MB.' }, { status: 400 });
     }
 
-    const user = updateUser(authResult.user.id, { profilePicture });
+    const user = await updateUser(authResult.user.id, { profilePicture });
     if (!user) {
       return NextResponse.json({ error: 'User not found' }, { status: 404 });
     }

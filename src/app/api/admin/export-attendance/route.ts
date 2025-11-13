@@ -8,16 +8,18 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: authResult.error }, { status: authResult.status });
   }
 
-  const rows = getAttendance();
+  const rows = await getAttendance();
   const header = ['user_id', 'name', 'email', 'location', 'scannedAt'];
   const csv = [header.join(',')];
 
   rows.forEach((r) => {
+    // Use scannerLocation if available, fallback to location for backward compatibility
+    const locationValue = r.scannerLocation || r.location || '';
     const fields = [
       r.userId,
       `"${r.user?.name || ''}"`,
       `"${r.user?.email || ''}"`,
-      `"${r.location || ''}"`,
+      `"${locationValue}"`,
       r.scannedAt,
     ];
     csv.push(fields.join(','));

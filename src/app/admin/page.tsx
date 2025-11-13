@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback } from 'react';
 import axios from 'axios';
-import { Bar, Line } from 'react-chartjs-2';
+import { Bar, Line, Pie } from 'react-chartjs-2';
 import { 
   Chart as ChartJS, 
   CategoryScale, 
@@ -12,7 +12,8 @@ import {
   LineElement, 
   Title, 
   Tooltip, 
-  Legend 
+  Legend,
+  ArcElement 
 } from 'chart.js';
 import {
   Container,
@@ -51,7 +52,7 @@ import {
   QrCode2 as QrCodeIcon,
 } from '@mui/icons-material';
 
-ChartJS.register(CategoryScale, LinearScale, BarElement, PointElement, LineElement, Title, Tooltip, Legend);
+ChartJS.register(CategoryScale, LinearScale, BarElement, PointElement, LineElement, Title, Tooltip, Legend, ArcElement);
 
 // Helper to draw rounded rectangle on canvas
 function roundRect(ctx: CanvasRenderingContext2D, x: number, y: number, width: number, height: number, radius: number) {
@@ -89,6 +90,7 @@ interface AttendanceRecord {
   id: number;
   userId: number;
   location: string;
+  scannerLocation?: string;
   scannedAt: string;
   user?: User;
 }
@@ -134,12 +136,6 @@ export default function AdminPage() {
   const [expandedDays, setExpandedDays] = useState<Record<string, boolean>>({});
   const [onlyDaysWithScans, setOnlyDaysWithScans] = useState(true);
 
-  // State for department analytics
-  const [departmentData, setDepartmentData] = useState<{
-    labels: string[];
-    counts: number[];
-  }>({ labels: [], counts: [] });
-
   // State for charts
   const [chartDays, setChartDays] = useState(7);
   const [chartType, setChartType] = useState<'bar' | 'line'>('bar');
@@ -148,6 +144,45 @@ export default function AdminPage() {
     scanCounts: number[];
     uniqueUserCounts: number[];
   }>({ labels: [], scanCounts: [], uniqueUserCounts: [] });
+
+  // State for behavior analytics
+  const [behaviorData, setBehaviorData] = useState<{
+    summary: {
+      total: number;
+      regular: number;
+      lessRegular: number;
+      irregular: number;
+      uninterested: number;
+      regularPercentage: number;
+      lessRegularPercentage: number;
+      irregularPercentage: number;
+      uninterestedPercentage: number;
+    };
+    students: any[];
+  }>({
+    summary: {
+      total: 0,
+      regular: 0,
+      lessRegular: 0,
+      irregular: 0,
+      uninterested: 0,
+      regularPercentage: 0,
+      lessRegularPercentage: 0,
+      irregularPercentage: 0,
+      uninterestedPercentage: 0,
+    },
+    students: [],
+  });
+
+  // State for scanner login logs
+  const [scannerLogs, setScannerLogs] = useState<any[]>([]);
+  const [scannerLogStats, setScannerLogStats] = useState({
+    total: 0,
+    successful: 0,
+    failed: 0,
+    successRate: 0,
+  });
+  const [showScannerLogs, setShowScannerLogs] = useState(false);
 
   const [successMsg, setSuccessMsg] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
@@ -159,7 +194,7 @@ export default function AdminPage() {
     if (!token) return;
 
     axios
-      .get(`http://localhost:3000/api/admin/attendance/daily?days=${days}`, {
+      .get(`/api/admin/attendance/daily?days=${days}`, {
         headers: { Authorization: `Bearer ${token}` },
       })
       .then((res) => {
@@ -173,22 +208,33 @@ export default function AdminPage() {
       .catch((err) => console.error(err));
   }, []);
 
-  const loadDepartmentData = useCallback(() => {
+  const loadBehaviorAnalytics = useCallback(() => {
     const token = localStorage.getItem('pundra_token');
     if (!token) return;
 
     axios
-      .get('http://localhost:3000/api/admin/attendance/by-department', {
+      .get('/api/admin/behavior-analytics', {
         headers: { Authorization: `Bearer ${token}` },
       })
       .then((res) => {
-        const data = res.data;
-        setDepartmentData({
-          labels: data.labels || [],
-          counts: data.counts || [],
-        });
+        setBehaviorData(res.data);
       })
-      .catch((err) => console.error(err));
+      .catch((err) => console.error('Behavior analytics error:', err));
+  }, []);
+
+  const loadScannerLoginLogs = useCallback(() => {
+    const token = localStorage.getItem('pundra_token');
+    if (!token) return;
+
+    axios
+      .get('/api/admin/scanner-login-logs?limit=50', {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      .then((res) => {
+        setScannerLogs(res.data.logs || []);
+        setScannerLogStats(res.data.stats || { total: 0, successful: 0, failed: 0, successRate: 0 });
+      })
+      .catch((err) => console.error('Scanner login logs error:', err));
   }, []);
 
   const loadDailyAttendance = useCallback(() => {
@@ -196,7 +242,7 @@ export default function AdminPage() {
     if (!token) return;
 
     axios
-      .get('http://localhost:3000/api/admin/attendance/daily?days=30', {
+      .get('/api/admin/attendance/daily?days=30', {
         headers: { Authorization: `Bearer ${token}` },
       })
       .then((res) => {
@@ -215,7 +261,7 @@ export default function AdminPage() {
 
     // Fetch stats
     axios
-      .get('http://localhost:3000/api/admin/stats', {
+      .get('/api/admin/stats', {
         headers: { Authorization: `Bearer ${token}` },
       })
       .then((res) => setStats(res.data))
@@ -225,11 +271,14 @@ export default function AdminPage() {
 
     // Fetch users
     axios
-      .get('http://localhost:3000/api/admin/users', {
+      .get('/api/admin/users', {
         headers: { Authorization: `Bearer ${token}` },
       })
       .then((res) => {
-        setUsers(Array.isArray(res.data.users) ? res.data.users : []);
+        const usersList = Array.isArray(res.data.users) ? res.data.users : [];
+        // Sort users by ID in ascending order for proper serial numbering
+        usersList.sort((a: User, b: User) => a.id - b.id);
+        setUsers(usersList);
       })
       .catch((err) => {
         console.error(err);
@@ -237,11 +286,12 @@ export default function AdminPage() {
 
     // Reload chart data
     loadChartData(chartDays);
-    loadDepartmentData();
     loadDailyAttendance();
+    loadBehaviorAnalytics();
+    loadScannerLoginLogs();
     
     setLastRefresh(new Date());
-  }, [chartDays, loadChartData, loadDepartmentData, loadDailyAttendance]);
+  }, [chartDays, loadChartData, loadDailyAttendance, loadBehaviorAnalytics, loadScannerLoginLogs]);
 
   useEffect(() => {
     const token = localStorage.getItem('pundra_token');
@@ -280,7 +330,7 @@ export default function AdminPage() {
 
     axios
       .post(
-        'http://localhost:3000/api/admin/users',
+        '/api/admin/users',
         { name, email, password, studentId, program, department, batch, session, bloodGroup, isAdmin },
         { headers: { Authorization: `Bearer ${token}` } }
       )
@@ -335,7 +385,7 @@ export default function AdminPage() {
 
     axios
       .put(
-        `http://localhost:3000/api/admin/users/${userId}`,
+        `/api/admin/users/${userId}`,
         { name, email, studentId, program, department, batch, session, bloodGroup, isAdmin },
         { headers: { Authorization: `Bearer ${token}` } }
       )
@@ -368,7 +418,7 @@ export default function AdminPage() {
     if (!confirm(`Delete user ${user.name}?`)) return;
 
     axios
-      .delete(`http://localhost:3000/api/admin/users/${userId}`, {
+      .delete(`/api/admin/users/${userId}`, {
         headers: { Authorization: `Bearer ${token}` },
       })
       .then(() => {
@@ -388,7 +438,7 @@ export default function AdminPage() {
     if (!token) return;
 
     try {
-      const res = await axios.get(`http://localhost:3000/api/users/${userId}/qrcode-token`, {
+      const res = await axios.get(`/api/users/${userId}/qrcode-token`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       const qrToken = res.data.qrcodeToken;
@@ -430,7 +480,7 @@ export default function AdminPage() {
     if (!token) return;
 
     axios
-      .get('http://localhost:3000/api/admin/export-attendance', {
+      .get('/api/admin/export-attendance', {
         headers: { Authorization: `Bearer ${token}` },
         responseType: 'blob',
       })
@@ -453,7 +503,7 @@ export default function AdminPage() {
     if (!token) return;
 
     axios
-      .get('http://localhost:3000/api/admin/attendance/daily?days=90', {
+      .get('/api/admin/attendance/daily?days=90', {
         headers: { Authorization: `Bearer ${token}` },
       })
       .then((res) => {
@@ -517,31 +567,6 @@ export default function AdminPage() {
         data: chartData.uniqueUserCounts,
         backgroundColor: 'rgba(118, 75, 162, 0.5)',
         borderColor: 'rgb(118, 75, 162)',
-        borderWidth: 1,
-      },
-    ],
-  };
-
-  const deptChartData = {
-    labels: departmentData.labels,
-    datasets: [
-      {
-        label: 'Attendance Count',
-        data: departmentData.counts,
-        backgroundColor: [
-          'rgba(255, 99, 132, 0.5)',
-          'rgba(54, 162, 235, 0.5)',
-          'rgba(255, 206, 86, 0.5)',
-          'rgba(75, 192, 192, 0.5)',
-          'rgba(153, 102, 255, 0.5)',
-        ],
-        borderColor: [
-          'rgba(255, 99, 132, 1)',
-          'rgba(54, 162, 235, 1)',
-          'rgba(255, 206, 86, 1)',
-          'rgba(75, 192, 192, 1)',
-          'rgba(153, 102, 255, 1)',
-        ],
         borderWidth: 1,
       },
     ],
@@ -662,21 +687,218 @@ export default function AdminPage() {
         )}
       </Paper>
 
-      {/* Department Analytics */}
+      {/* Behavior Analytics */}
       <Paper sx={{ p: 3, mb: 4 }}>
-        <Typography variant="h5" gutterBottom fontWeight="bold">
-          Attendance by Department
+        <Typography variant="h5" gutterBottom fontWeight="bold" color="primary">
+          📊 Student Attendance Behavior Analysis
         </Typography>
-        <Bar
-          options={{
-            responsive: true,
-            plugins: {
-              legend: { position: 'top' as const },
-              title: { display: true, text: 'Total Attendance by Department' },
-            },
-          }}
-          data={deptChartData}
-        />
+        <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
+          AI-assisted Smart Attendance Analysis - Understanding student attendance patterns
+        </Typography>
+
+        <Grid container spacing={3}>
+          {/* Summary Cards */}
+          <Grid item xs={12}>
+            <Grid container spacing={2}>
+              <Grid item xs={6} sm={3}>
+                <Card sx={{ bgcolor: '#4caf50', color: 'white' }}>
+                  <CardContent>
+                    <Typography variant="h4" fontWeight="bold">
+                      {behaviorData.summary.regular}
+                    </Typography>
+                    <Typography variant="body2">✅ Regular</Typography>
+                    <Typography variant="caption">
+                      {behaviorData.summary.regularPercentage}%
+                    </Typography>
+                  </CardContent>
+                </Card>
+              </Grid>
+              <Grid item xs={6} sm={3}>
+                <Card sx={{ bgcolor: '#ff9800', color: 'white' }}>
+                  <CardContent>
+                    <Typography variant="h4" fontWeight="bold">
+                      {behaviorData.summary.lessRegular}
+                    </Typography>
+                    <Typography variant="body2">⚠️ Less Regular</Typography>
+                    <Typography variant="caption">
+                      {behaviorData.summary.lessRegularPercentage}%
+                    </Typography>
+                  </CardContent>
+                </Card>
+              </Grid>
+              <Grid item xs={6} sm={3}>
+                <Card sx={{ bgcolor: '#ff5722', color: 'white' }}>
+                  <CardContent>
+                    <Typography variant="h4" fontWeight="bold">
+                      {behaviorData.summary.irregular}
+                    </Typography>
+                    <Typography variant="body2">⏰ Irregular</Typography>
+                    <Typography variant="caption">
+                      {behaviorData.summary.irregularPercentage}%
+                    </Typography>
+                  </CardContent>
+                </Card>
+              </Grid>
+              <Grid item xs={6} sm={3}>
+                <Card sx={{ bgcolor: '#f44336', color: 'white' }}>
+                  <CardContent>
+                    <Typography variant="h4" fontWeight="bold">
+                      {behaviorData.summary.uninterested}
+                    </Typography>
+                    <Typography variant="body2">❌ Uninterested</Typography>
+                    <Typography variant="caption">
+                      {behaviorData.summary.uninterestedPercentage}%
+                    </Typography>
+                  </CardContent>
+                </Card>
+              </Grid>
+            </Grid>
+          </Grid>
+
+          {/* Pie Chart */}
+          <Grid item xs={12} md={6}>
+            <Paper sx={{ p: 2 }}>
+              <Typography variant="h6" gutterBottom>
+                Overall Behavior Distribution
+              </Typography>
+              <Pie
+                data={{
+                  labels: ['✅ Regular', '⚠️ Less Regular', '⏰ Irregular', '❌ Uninterested'],
+                  datasets: [
+                    {
+                      data: [
+                        behaviorData.summary.regular,
+                        behaviorData.summary.lessRegular,
+                        behaviorData.summary.irregular,
+                        behaviorData.summary.uninterested,
+                      ],
+                      backgroundColor: ['#4caf50', '#ff9800', '#ff5722', '#f44336'],
+                      borderWidth: 2,
+                      borderColor: '#fff',
+                    },
+                  ],
+                }}
+                options={{
+                  responsive: true,
+                  plugins: {
+                    legend: { position: 'bottom' },
+                    title: { display: true, text: 'Student Behavior Categories' },
+                  },
+                }}
+              />
+            </Paper>
+          </Grid>
+
+          {/* Top 10 Students */}
+          <Grid item xs={12} md={6}>
+            <Paper sx={{ p: 2 }}>
+              <Typography variant="h6" gutterBottom>
+                Top 10 Regular Students
+              </Typography>
+              <TableContainer>
+                <Table size="small">
+                  <TableHead>
+                    <TableRow>
+                      <TableCell>Rank</TableCell>
+                      <TableCell>Name</TableCell>
+                      <TableCell>Score</TableCell>
+                      <TableCell>Category</TableCell>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {behaviorData.students.slice(0, 10).map((student, index) => (
+                      <TableRow key={student.userId}>
+                        <TableCell>{index + 1}</TableCell>
+                        <TableCell>{student.userName}</TableCell>
+                        <TableCell>
+                          <Chip
+                            label={`${student.behaviorScore}/100`}
+                            color={student.behaviorScore >= 80 ? 'success' : student.behaviorScore >= 60 ? 'warning' : 'error'}
+                            size="small"
+                          />
+                        </TableCell>
+                        <TableCell>
+                          <Chip
+                            label={student.category}
+                            color={
+                              student.category === 'Regular'
+                                ? 'success'
+                                : student.category === 'Less Regular'
+                                ? 'warning'
+                                : 'error'
+                            }
+                            size="small"
+                          />
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </TableContainer>
+            </Paper>
+          </Grid>
+
+          {/* All Students Behavior Table */}
+          <Grid item xs={12}>
+            <Typography variant="h6" gutterBottom>
+              All Students Behavior Details
+            </Typography>
+            <TableContainer>
+              <Table>
+                <TableHead>
+                  <TableRow>
+                    <TableCell>Rank</TableCell>
+                    <TableCell>Name</TableCell>
+                    <TableCell>Student ID</TableCell>
+                    <TableCell>Department</TableCell>
+                    <TableCell>Score</TableCell>
+                    <TableCell>Category</TableCell>
+                    <TableCell>On Time</TableCell>
+                    <TableCell>Slightly Late</TableCell>
+                    <TableCell>Late</TableCell>
+                    <TableCell>Very Late</TableCell>
+                    <TableCell>Total Scans</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {behaviorData.students.map((student, index) => (
+                    <TableRow key={student.userId}>
+                      <TableCell>{index + 1}</TableCell>
+                      <TableCell>{student.userName}</TableCell>
+                      <TableCell>{student.studentId || '-'}</TableCell>
+                      <TableCell>{student.department || '-'}</TableCell>
+                      <TableCell>
+                        <Chip
+                          label={`${student.behaviorScore}/100`}
+                          color={student.behaviorScore >= 80 ? 'success' : student.behaviorScore >= 60 ? 'warning' : 'error'}
+                          size="small"
+                        />
+                      </TableCell>
+                      <TableCell>
+                        <Chip
+                          label={student.category}
+                          color={
+                            student.category === 'Regular'
+                              ? 'success'
+                              : student.category === 'Less Regular'
+                              ? 'warning'
+                              : 'error'
+                          }
+                          size="small"
+                        />
+                      </TableCell>
+                      <TableCell>{student.onTimeCount}</TableCell>
+                      <TableCell>{student.slightlyLateCount}</TableCell>
+                      <TableCell>{student.lateCount}</TableCell>
+                      <TableCell>{student.veryLateOrAbsent}</TableCell>
+                      <TableCell><strong>{student.totalScans}</strong></TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </TableContainer>
+          </Grid>
+        </Grid>
       </Paper>
 
       {/* User Management */}
@@ -1020,7 +1242,7 @@ export default function AdminPage() {
                       <TableRow key={record.id}>
                         <TableCell>{record.id}</TableCell>
                         <TableCell>{record.user?.name || `User ${record.userId}`}</TableCell>
-                        <TableCell>{record.location}</TableCell>
+                        <TableCell>{record.scannerLocation || record.location}</TableCell>
                         <TableCell>{new Date(record.scannedAt).toLocaleTimeString()}</TableCell>
                       </TableRow>
                     ))}
@@ -1030,6 +1252,132 @@ export default function AdminPage() {
             </Collapse>
           </Box>
         ))}
+      </Paper>
+
+      {/* Scanner Login Logs */}
+      <Paper sx={{ p: 3, mb: 4 }}>
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+          <Typography variant="h5" fontWeight="bold">
+            🔐 Scanner Login Logs
+          </Typography>
+          <Button
+            variant="outlined"
+            onClick={() => setShowScannerLogs(!showScannerLogs)}
+            endIcon={showScannerLogs ? <ExpandLessIcon /> : <ExpandMoreIcon />}
+          >
+            {showScannerLogs ? 'Hide' : 'Show'} Logs
+          </Button>
+        </Box>
+
+        {/* Stats Summary */}
+        <Grid container spacing={2} sx={{ mb: 3 }}>
+          <Grid item xs={6} sm={3}>
+            <Card>
+              <CardContent>
+                <Typography variant="h4" fontWeight="bold" color="primary">
+                  {scannerLogStats.total}
+                </Typography>
+                <Typography variant="body2" color="text.secondary">
+                  Total Attempts
+                </Typography>
+              </CardContent>
+            </Card>
+          </Grid>
+          <Grid item xs={6} sm={3}>
+            <Card sx={{ bgcolor: '#e8f5e9' }}>
+              <CardContent>
+                <Typography variant="h4" fontWeight="bold" color="success.main">
+                  {scannerLogStats.successful}
+                </Typography>
+                <Typography variant="body2" color="text.secondary">
+                  ✅ Successful
+                </Typography>
+              </CardContent>
+            </Card>
+          </Grid>
+          <Grid item xs={6} sm={3}>
+            <Card sx={{ bgcolor: '#ffebee' }}>
+              <CardContent>
+                <Typography variant="h4" fontWeight="bold" color="error.main">
+                  {scannerLogStats.failed}
+                </Typography>
+                <Typography variant="body2" color="text.secondary">
+                  ❌ Failed
+                </Typography>
+              </CardContent>
+            </Card>
+          </Grid>
+          <Grid item xs={6} sm={3}>
+            <Card sx={{ bgcolor: '#e3f2fd' }}>
+              <CardContent>
+                <Typography variant="h4" fontWeight="bold" color="info.main">
+                  {scannerLogStats.successRate}%
+                </Typography>
+                <Typography variant="body2" color="text.secondary">
+                  Success Rate
+                </Typography>
+              </CardContent>
+            </Card>
+          </Grid>
+        </Grid>
+
+        <Collapse in={showScannerLogs}>
+          <TableContainer>
+            <Table>
+              <TableHead>
+                <TableRow>
+                  <TableCell>Timestamp</TableCell>
+                  <TableCell>Username</TableCell>
+                  <TableCell>Location</TableCell>
+                  <TableCell>Status</TableCell>
+                  <TableCell>IP Address</TableCell>
+                  <TableCell>Error Message</TableCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {scannerLogs.map((log) => (
+                  <TableRow
+                    key={log.id}
+                    sx={{
+                      bgcolor: log.success ? 'transparent' : 'error.lighter',
+                    }}
+                  >
+                    <TableCell>
+                      {new Date(log.timestamp).toLocaleString()}
+                    </TableCell>
+                    <TableCell>
+                      <strong>{log.username}</strong>
+                    </TableCell>
+                    <TableCell>
+                      <Chip label={log.location} size="small" color="primary" variant="outlined" />
+                    </TableCell>
+                    <TableCell>
+                      <Chip
+                        label={log.success ? '✅ Success' : '❌ Failed'}
+                        size="small"
+                        color={log.success ? 'success' : 'error'}
+                      />
+                    </TableCell>
+                    <TableCell>
+                      <Typography variant="caption" sx={{ fontFamily: 'monospace' }}>
+                        {log.ipAddress}
+                      </Typography>
+                    </TableCell>
+                    <TableCell>
+                      {log.errorMessage ? (
+                        <Typography variant="caption" color="error">
+                          {log.errorMessage}
+                        </Typography>
+                      ) : (
+                        '-'
+                      )}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </TableContainer>
+        </Collapse>
       </Paper>
 
       {/* Export */}

@@ -33,6 +33,18 @@ export default function AdminLogin() {
   const [err, setErr] = useState<string | null>(null);
   const [isRedirecting, setIsRedirecting] = useState(false);
 
+  // Check for session expired message
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      if (params.get('error') === 'session_expired') {
+        setErr('Your session has expired. Please login again.');
+        // Remove the error parameter from URL
+        window.history.replaceState({}, '', window.location.pathname);
+      }
+    }
+  }, []);
+
   // Check if admin is already logged in
   useEffect(() => {
     const checkAuth = () => {
@@ -65,7 +77,7 @@ export default function AdminLogin() {
     e.preventDefault();
     setErr(null);
     try {
-      const res = await axios.post('http://localhost:3000/api/auth/login', { email, password });
+      const res = await axios.post('/api/auth/login', { email, password });
       const user = res.data.user;
       if (!user || !user.isAdmin) {
         setErr('Access denied: this page is for admins only. Please use the regular login.');

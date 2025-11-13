@@ -14,7 +14,7 @@ export interface UserPayload {
 }
 
 export function generateUserToken(user: UserPayload, expiresIn: string = '6h'): string {
-  const payload = { userId: user.id, id: user.id, name: user.name, email: user.email };
+  const payload = { userId: user.id, id: user.id, name: user.name, email: user.email, isAdmin: user.isAdmin || false };
   return jwt.sign(payload, JWT_SECRET, { expiresIn } as jwt.SignOptions);
 }
 
@@ -51,17 +51,24 @@ export interface AuthRequest extends NextRequest {
 
 export function getAuthUser(request: NextRequest): (UserPayload & { isAdmin: boolean }) | null {
   const auth = request.headers.get('authorization');
-  if (!auth) return null;
+  if (!auth) {
+    console.log('[AUTH] No authorization header');
+    return null;
+  }
   
   const parts = auth.split(' ');
-  if (parts.length !== 2 || parts[0] !== 'Bearer') return null;
+  if (parts.length !== 2 || parts[0] !== 'Bearer') {
+    console.log('[AUTH] Invalid authorization format');
+    return null;
+  }
   
   const token = parts[1];
   try {
     const payload = verifyToken(token);
-    const user = findUserById(payload.id);
-    return { ...payload, isAdmin: user ? user.isAdmin : false };
-  } catch {
+    // The isAdmin field is now included in the JWT token payload
+    return { ...payload, isAdmin: payload.isAdmin || false };
+  } catch (error) {
+    console.log('[AUTH] Token verification failed:', error instanceof Error ? error.message : 'Unknown error');
     return null;
   }
 }

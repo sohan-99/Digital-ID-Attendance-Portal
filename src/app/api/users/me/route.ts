@@ -8,7 +8,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: authResult.error }, { status: authResult.status });
   }
 
-  const user = findUserById(authResult.user.id);
+  const user = await findUserById(authResult.user.id);
   if (!user) {
     return NextResponse.json({ error: 'User not found' }, { status: 404 });
   }
@@ -26,6 +26,7 @@ export async function GET(request: NextRequest) {
       batch: user.batch,
       session: user.session,
       bloodGroup: user.bloodGroup,
+      emailVerified: user.emailVerified || false,
     },
   });
 }

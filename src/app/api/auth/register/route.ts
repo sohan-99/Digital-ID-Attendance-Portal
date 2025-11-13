@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { addUser, findUserByEmail, init } from '@/lib/db';
 import { generateUserToken, hashPassword, validatePassword } from '@/lib/auth';
+import { generateOTP, sendOTPEmail } from '@/lib/email';
 
 // Initialize database
-init();
+init().catch(console.error);
 
 export async function POST(request: NextRequest) {
   try {
@@ -21,12 +22,16 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (findUserByEmail(email)) {
+    if (await findUserByEmail(email)) {
       return NextResponse.json({ error: 'Email exists' }, { status: 400 });
     }
 
+    // Generate OTP for email verification
+    const otp = generateOTP();
+    const otpExpiry = new Date(Date.now() + 15 * 60 * 1000); // 15 minutes from now
+
     const passwordHash = hashPassword(password);
-    const user = addUser({
+    const user = await addUser({
       name,
       email,
       passwordHash,
@@ -37,7 +42,25 @@ export async function POST(request: NextRequest) {
       batch,
       session,
       bloodGroup,
+      emailVerified: false,
+      otp,
+      otpExpiry,
     });
+
+    // Send OTP email (don't fail registration if email fails)
+    try {
+      const emailSent = await sendOTPEmail(email, otp, name);
+      if (!emailSent) {
+        console.log('⚠️  Email not configured. Registration completed but OTP email not sent.');
+        console.log('📧 User:', email);
+        console.log('🔐 OTP (for testing):', otp);
+        console.log('💡 User can use this OTP to verify their email.');
+      }
+    } catch (emailError) {
+      console.error('Failed to send OTP email:', emailError);
+      console.log('🔐 OTP (for testing):', otp);
+      // Continue with registration even if email fails
+    }
 
     const token = generateUserToken(user, '7d');
 
@@ -54,6 +77,7 @@ export async function POST(request: NextRequest) {
         batch: user.batch,
         session: user.session,
         bloodGroup: user.bloodGroup,
+        emailVerified: user.emailVerified,
       },
     });
   } catch (error) {

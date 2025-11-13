@@ -8,7 +8,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: authResult.error }, { status: authResult.status });
   }
 
-  const users = allUsers().map((u) => ({
+  const users = (await allUsers()).map((u) => ({
     id: u.id,
     name: u.name,
     email: u.email,
@@ -45,12 +45,12 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (findUserByEmail(email)) {
+    if (await findUserByEmail(email)) {
       return NextResponse.json({ error: 'Email exists' }, { status: 400 });
     }
 
     const passwordHash = hashPassword(password);
-    const user = addUser({
+    const user = await addUser({
       name,
       email,
       passwordHash,

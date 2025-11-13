@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import jwt from 'jsonwebtoken';
 import { getTodayAttendanceByLocation, getAttendanceByLocation } from '@/lib/db';
 
-const JWT_SECRET = process.env.JWT_SECRET || 'your-scanner-secret-key-change-in-production';
+// IMPORTANT: Use the same JWT_SECRET as in /lib/auth.ts
+const JWT_SECRET = process.env.JWT_SECRET || 'dev_secret_change_me';
 
 interface ScannerTokenPayload {
   scannerAdminId: number;
@@ -53,14 +54,14 @@ export async function GET(req: NextRequest) {
     
     if (todayOnly) {
       // Get today's attendance for this location
-      attendance = getTodayAttendanceByLocation(scannerData.location);
+      attendance = await getTodayAttendanceByLocation(scannerData.location);
     } else if (dateFilter) {
       // Get attendance for specific date
-      const allAttendance = getAttendanceByLocation(scannerData.location);
+      const allAttendance = await getAttendanceByLocation(scannerData.location);
       attendance = allAttendance.filter(att => att.scannedAt.startsWith(dateFilter));
     } else {
       // Get all attendance for this location
-      attendance = getAttendanceByLocation(scannerData.location);
+      attendance = await getAttendanceByLocation(scannerData.location);
     }
 
     // Remove sensitive user data
