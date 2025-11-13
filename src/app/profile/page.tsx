@@ -81,6 +81,8 @@ export default function Profile() {
   const [loadingAttendance, setLoadingAttendance] = useState(false);
   const [uploadingPicture, setUploadingPicture] = useState(false);
   const [pictureError, setPictureError] = useState('');
+  const [behaviorData, setBehaviorData] = useState<any>(null);
+  const [loadingBehavior, setLoadingBehavior] = useState(false);
 
   useEffect(() => {
     const t = localStorage.getItem('pundra_token');
@@ -112,6 +114,19 @@ export default function Profile() {
           headers: { Authorization: `Bearer ${t}` },
         });
         setAttendance(att.data.rows || []);
+
+        // Load behavior analytics
+        setLoadingBehavior(true);
+        try {
+          const behavior = await axios.get('http://localhost:3000/api/users/me/behavior', {
+            headers: { Authorization: `Bearer ${t}` },
+          });
+          setBehaviorData(behavior.data);
+        } catch (behaviorErr) {
+          console.log('[PROFILE] Behavior analytics error:', behaviorErr);
+        } finally {
+          setLoadingBehavior(false);
+        }
       } catch (e: unknown) {
         if (axios.isAxiosError(e)) {
           const data = e.response?.data as { error?: string } | undefined;
@@ -447,6 +462,84 @@ export default function Profile() {
             </Grid>
           </CardContent>
         </Card>
+
+        {/* Behavior Analysis Card */}
+        {!user.isAdmin && behaviorData && behaviorData.behavior && (
+          <Card 
+            elevation={3} 
+            sx={{ 
+              bgcolor: 
+                behaviorData.behavior.category === 'Regular' ? '#e8f5e9' :
+                behaviorData.behavior.category === 'Less Regular' ? '#fff3e0' :
+                behaviorData.behavior.category === 'Irregular' ? '#ffe0b2' : '#ffebee',
+              border: 2,
+              borderColor:
+                behaviorData.behavior.category === 'Regular' ? '#4caf50' :
+                behaviorData.behavior.category === 'Less Regular' ? '#ff9800' :
+                behaviorData.behavior.category === 'Irregular' ? '#ff5722' : '#f44336'
+            }}
+          >
+            <CardContent sx={{ p: 4 }}>
+              <Typography variant="h5" fontWeight={700} gutterBottom color="primary">
+                📊 Your Attendance Behavior
+              </Typography>
+              <Alert 
+                severity={
+                  behaviorData.behavior.category === 'Regular' ? 'success' :
+                  behaviorData.behavior.category === 'Less Regular' ? 'warning' :
+                  behaviorData.behavior.category === 'Irregular' ? 'warning' : 'error'
+                }
+                sx={{ mb: 2, fontSize: '1.1rem', fontWeight: 600 }}
+              >
+                {behaviorData.behavior.message}
+              </Alert>
+              
+              <Grid container spacing={2}>
+                <Grid item xs={6} sm={3}>
+                  <Paper sx={{ p: 2, textAlign: 'center', bgcolor: 'white' }}>
+                    <Typography variant="h4" fontWeight="bold" color="success.main">
+                      {behaviorData.behavior.onTimeCount}
+                    </Typography>
+                    <Typography variant="caption">✅ On Time</Typography>
+                  </Paper>
+                </Grid>
+                <Grid item xs={6} sm={3}>
+                  <Paper sx={{ p: 2, textAlign: 'center', bgcolor: 'white' }}>
+                    <Typography variant="h4" fontWeight="bold" color="warning.main">
+                      {behaviorData.behavior.slightlyLateCount}
+                    </Typography>
+                    <Typography variant="caption">⚠️ Slightly Late</Typography>
+                  </Paper>
+                </Grid>
+                <Grid item xs={6} sm={3}>
+                  <Paper sx={{ p: 2, textAlign: 'center', bgcolor: 'white' }}>
+                    <Typography variant="h4" fontWeight="bold" color="error.main">
+                      {behaviorData.behavior.lateCount}
+                    </Typography>
+                    <Typography variant="caption">⏰ Late</Typography>
+                  </Paper>
+                </Grid>
+                <Grid item xs={6} sm={3}>
+                  <Paper sx={{ p: 2, textAlign: 'center', bgcolor: 'white' }}>
+                    <Typography variant="h4" fontWeight="bold" color="error.dark">
+                      {behaviorData.behavior.veryLateCount}
+                    </Typography>
+                    <Typography variant="caption">❌ Very Late</Typography>
+                  </Paper>
+                </Grid>
+              </Grid>
+
+              <Box sx={{ mt: 3, textAlign: 'center' }}>
+                <Typography variant="h3" fontWeight="bold" color="primary">
+                  {behaviorData.behavior.score}/100
+                </Typography>
+                <Typography variant="body2" color="text.secondary">
+                  Your Attendance Behavior Score
+                </Typography>
+              </Box>
+            </CardContent>
+          </Card>
+        )}
 
         {/* QR Code Card */}
         <Card elevation={3}>

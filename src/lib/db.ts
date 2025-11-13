@@ -17,6 +17,10 @@ interface User {
   bloodGroup?: string | null;
   qrToken?: string | null;
   qrTokenExpiry?: string | null;
+  // Scanner admin fields
+  isScannerAdmin?: boolean;
+  scannerLocation?: 'Campus' | 'Library' | 'Event' | 'All' | null;
+  isSuperScanner?: boolean;
 }
 
 interface ScannerAdmin {
@@ -44,6 +48,19 @@ interface Attendance {
 interface Counter {
   _id: string;
   seq: number;
+}
+
+interface ScannerLoginLog {
+  _id?: ObjectId;
+  id: number;
+  username: string;
+  location: string;
+  success: boolean;
+  errorMessage?: string;
+  ipAddress?: string;
+  userAgent?: string;
+  timestamp: string;
+  scannerAdminId?: number;
 }
 
 // Helper function to get next ID
@@ -269,37 +286,99 @@ export async function addScannerAdmin(data: {
   isSuperAdmin?: boolean;
 }): Promise<ScannerAdmin> {
   const db = await getDatabase();
-  const id = await getNextSequence('scannerAdminId');
+  const id = await getNextSequence('userId'); // Use user ID sequence
   
-  const scannerAdmin: ScannerAdmin = {
+  // Create scanner admin as a user with scanner flags
+  const user: User = {
     id,
-    username: data.username,
-    passwordHash: data.passwordHash,
-    location: data.location,
+    email: data.username, // Username becomes email
     name: data.name,
+    passwordHash: data.passwordHash,
+    isAdmin: false,
+    isScannerAdmin: true,
+    scannerLocation: data.location,
+    isSuperScanner: data.isSuperAdmin || false,
+    studentId: null,
+    program: null,
+    department: null,
+    batch: null,
+    session: null,
+    bloodGroup: null,
+    profilePicture: null,
+    qrToken: null,
+    qrTokenExpiry: null,
+  };
+  
+  await db.collection<User>(COLLECTIONS.USERS).insertOne(user);
+  
+  // Return in ScannerAdmin format for backward compatibility
+  return {
+    id: user.id,
+    username: user.email,
+    passwordHash: user.passwordHash,
+    location: data.location,
+    name: user.name,
     createdAt: new Date().toISOString(),
     isSuperAdmin: data.isSuperAdmin || false,
   };
-  
-  await db.collection<ScannerAdmin>(COLLECTIONS.SCANNER_ADMINS).insertOne(scannerAdmin);
-  return scannerAdmin;
 }
 
 export async function findScannerAdminByUsername(username: string): Promise<ScannerAdmin | undefined> {
   const db = await getDatabase();
-  const admin = await db.collection<ScannerAdmin>(COLLECTIONS.SCANNER_ADMINS).findOne({ username });
-  return admin || undefined;
+  // Scanner admins are now stored in users collection with isScannerAdmin flag
+  // Username can be either email or the name field for backward compatibility
+  const user = await db.collection<User>(COLLECTIONS.USERS).findOne({
+    isScannerAdmin: true,
+    $or: [{ email: username }, { name: username }]
+  });
+  
+  if (!user) return undefined;
+  
+  // Convert User to ScannerAdmin format for backward compatibility
+  return {
+    id: user.id,
+    username: user.email,
+    passwordHash: user.passwordHash,
+    location: (user.scannerLocation || 'Campus') as 'Campus' | 'Library' | 'Event' | 'All',
+    name: user.name,
+    createdAt: new Date().toISOString(),
+    isSuperAdmin: user.isSuperScanner || false,
+  };
 }
 
 export async function findScannerAdminById(id: number): Promise<ScannerAdmin | undefined> {
   const db = await getDatabase();
-  const admin = await db.collection<ScannerAdmin>(COLLECTIONS.SCANNER_ADMINS).findOne({ id });
-  return admin || undefined;
+  const user = await db.collection<User>(COLLECTIONS.USERS).findOne({ 
+    id,
+    isScannerAdmin: true 
+  });
+  
+  if (!user) return undefined;
+  
+  return {
+    id: user.id,
+    username: user.email,
+    passwordHash: user.passwordHash,
+    location: (user.scannerLocation || 'Campus') as 'Campus' | 'Library' | 'Event' | 'All',
+    name: user.name,
+    createdAt: new Date().toISOString(),
+    isSuperAdmin: user.isSuperScanner || false,
+  };
 }
 
 export async function allScannerAdmins(): Promise<ScannerAdmin[]> {
   const db = await getDatabase();
-  return await db.collection<ScannerAdmin>(COLLECTIONS.SCANNER_ADMINS).find({}).toArray();
+  const users = await db.collection<User>(COLLECTIONS.USERS).find({ isScannerAdmin: true }).toArray();
+  
+  return users.map(user => ({
+    id: user.id,
+    username: user.email,
+    passwordHash: user.passwordHash,
+    location: (user.scannerLocation || 'Campus') as 'Campus' | 'Library' | 'Event' | 'All',
+    name: user.name,
+    createdAt: new Date().toISOString(),
+    isSuperAdmin: user.isSuperScanner || false,
+  }));
 }
 
 export async function getAttendanceByLocation(location: string): Promise<Attendance[]> {
@@ -343,4 +422,53 @@ export async function getTodayAttendanceByLocation(location: string): Promise<At
   }));
 }
 
-export type { User, ScannerAdmin, Attendance };
+// Scanner login log functions
+export async function logScannerLogin(data: {
+  username: string;
+  location: string;
+  success: boolean;
+  errorMessage?: string;
+  ipAddress?: string;
+  userAgent?: string;
+  scannerAdminId?: number;
+}): Promise<ScannerLoginLog> {
+  const db = await getDatabase();
+  const id = await getNextSequence('scannerLoginLog');
+  
+  const log: ScannerLoginLog = {
+    id,
+    username: data.username,
+    location: data.location,
+    success: data.success,
+    errorMessage: data.errorMessage,
+    ipAddress: data.ipAddress,
+    userAgent: data.userAgent,
+    scannerAdminId: data.scannerAdminId,
+    timestamp: new Date().toISOString(),
+  };
+  
+  await db.collection<ScannerLoginLog>(COLLECTIONS.SCANNER_LOGIN_LOGS).insertOne(log);
+  return log;
+}
+
+export async function getScannerLoginLogs(filter?: {
+  username?: string;
+  success?: boolean;
+  limit?: number;
+}): Promise<ScannerLoginLog[]> {
+  const db = await getDatabase();
+  
+  const query: any = {};
+  if (filter?.username) query.username = filter.username;
+  if (filter?.success !== undefined) query.success = filter.success;
+  
+  const logs = await db.collection<ScannerLoginLog>(COLLECTIONS.SCANNER_LOGIN_LOGS)
+    .find(query)
+    .sort({ timestamp: -1 })
+    .limit(filter?.limit || 100)
+    .toArray();
+  
+  return logs;
+}
+
+export type { User, ScannerAdmin, Attendance, ScannerLoginLog };

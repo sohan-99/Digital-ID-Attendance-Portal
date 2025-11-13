@@ -42,4 +42,5 @@ export const COLLECTIONS = {
   SCANNER_ADMINS: 'scannerAdmins',
   ATTENDANCE: 'attendance',
   COUNTERS: 'counters',
+  SCANNER_LOGIN_LOGS: 'scannerLoginLogs',
 } as const;
