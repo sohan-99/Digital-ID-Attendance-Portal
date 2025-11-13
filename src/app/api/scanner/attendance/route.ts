@@ -54,14 +54,14 @@ export async function GET(req: NextRequest) {
     
     if (todayOnly) {
       // Get today's attendance for this location
-      attendance = getTodayAttendanceByLocation(scannerData.location);
+      attendance = await getTodayAttendanceByLocation(scannerData.location);
     } else if (dateFilter) {
       // Get attendance for specific date
-      const allAttendance = getAttendanceByLocation(scannerData.location);
+      const allAttendance = await getAttendanceByLocation(scannerData.location);
       attendance = allAttendance.filter(att => att.scannedAt.startsWith(dateFilter));
     } else {
       // Get all attendance for this location
-      attendance = getAttendanceByLocation(scannerData.location);
+      attendance = await getAttendanceByLocation(scannerData.location);
     }
 
     // Remove sensitive user data

@@ -84,7 +84,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Find user (fast lookup)
-    const user = findUserById(userId);
+    const user = await findUserById(userId);
     if (!user) {
       return NextResponse.json(
         { error: 'User not found' },
@@ -97,8 +97,8 @@ export async function POST(req: NextRequest) {
     const { getAttendance } = await import('@/lib/db');
     const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
     
-    const recentAttendance = getAttendance({ userId });
-    const recentScan = recentAttendance.find(att => {
+    const recentAttendance = await getAttendance({ userId });
+    const recentScan = recentAttendance.find((att: any) => {
       const scannedAt = new Date(att.scannedAt);
       const attLocation = att.scannerLocation || att.location;
       return scannedAt > fiveMinutesAgo && attLocation === scanLocation;
@@ -115,7 +115,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Record attendance (fast write) - save location in BOTH fields for cross-compatibility
-    const attendance = addAttendance({
+    const attendance = await addAttendance({
       userId,
       location: scanLocation,
       scannedBy: scannerData.scannerAdminId,

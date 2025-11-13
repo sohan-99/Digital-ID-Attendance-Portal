@@ -3,7 +3,7 @@ import { addUser, findUserByEmail, init } from '@/lib/db';
 import { generateUserToken, hashPassword, validatePassword } from '@/lib/auth';
 
 // Initialize database
-init();
+init().catch(console.error);
 
 export async function POST(request: NextRequest) {
   try {
@@ -21,12 +21,12 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (findUserByEmail(email)) {
+    if (await findUserByEmail(email)) {
       return NextResponse.json({ error: 'Email exists' }, { status: 400 });
     }
 
     const passwordHash = hashPassword(password);
-    const user = addUser({
+    const user = await addUser({
       name,
       email,
       passwordHash,

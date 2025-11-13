@@ -19,7 +19,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Find scanner admin by username
-    const scannerAdmin = findScannerAdminByUsername(username);
+    const scannerAdmin = await findScannerAdminByUsername(username);
     
     if (!scannerAdmin) {
       return NextResponse.json(

@@ -43,7 +43,7 @@ export async function GET(request: NextRequest) {
       const requestedUserId = parseInt(userIdParam);
       
       // Check if requesting user is admin
-      const user = findUserById(userId);
+      const user = await findUserById(userId);
       
       if (!user) {
         console.log('[ATTENDANCE] User not found:', userId);
@@ -61,7 +61,7 @@ export async function GET(request: NextRequest) {
 
     console.log('[ATTENDANCE] Fetching attendance for user:', userId);
     // Fetch attendance records for the user
-    const attendance = getAttendance({ userId });
+    const attendance = await getAttendance({ userId });
 
     return NextResponse.json({ rows: attendance }, { status: 200 });
   } catch (error) {

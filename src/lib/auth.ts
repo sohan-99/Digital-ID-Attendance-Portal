@@ -14,7 +14,7 @@ export interface UserPayload {
 }
 
 export function generateUserToken(user: UserPayload, expiresIn: string = '6h'): string {
-  const payload = { userId: user.id, id: user.id, name: user.name, email: user.email };
+  const payload = { userId: user.id, id: user.id, name: user.name, email: user.email, isAdmin: user.isAdmin || false };
   return jwt.sign(payload, JWT_SECRET, { expiresIn } as jwt.SignOptions);
 }
 
@@ -65,12 +65,8 @@ export function getAuthUser(request: NextRequest): (UserPayload & { isAdmin: boo
   const token = parts[1];
   try {
     const payload = verifyToken(token);
-    const user = findUserById(payload.id);
-    if (!user) {
-      console.log('[AUTH] User not found for id:', payload.id);
-      return null;
-    }
-    return { ...payload, isAdmin: user ? user.isAdmin : false };
+    // The isAdmin field is now included in the JWT token payload
+    return { ...payload, isAdmin: payload.isAdmin || false };
   } catch (error) {
     console.log('[AUTH] Token verification failed:', error instanceof Error ? error.message : 'Unknown error');
     return null;

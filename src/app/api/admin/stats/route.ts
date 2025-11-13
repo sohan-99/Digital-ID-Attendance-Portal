@@ -8,9 +8,9 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: authResult.error }, { status: authResult.status });
   }
 
-  const totalUsers = countUsers();
-  const totalAttendance = countAttendance();
-  const recent = recentCounts(7);
+  const totalUsers = await countUsers();
+  const totalAttendance = await countAttendance();
+  const recent = await recentCounts(7);
 
   return NextResponse.json({
     totalUsers,

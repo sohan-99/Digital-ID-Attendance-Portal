@@ -2,8 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { findUserByEmail, init } from '@/lib/db';
 import { comparePassword, generateUserToken } from '@/lib/auth';
 
-// Initialize database
-init();
+// Initialize database (don't await at module level)
+init().catch(console.error);
 
 export async function POST(request: NextRequest) {
   try {
@@ -17,7 +17,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Missing fields' }, { status: 400 });
     }
 
-    const user = findUserByEmail(email);
+    const user = await findUserByEmail(email);
     if (!user) {
       console.log('[LOGIN] User not found:', email);
       return NextResponse.json({ error: 'Invalid credentials' }, { status: 400 });

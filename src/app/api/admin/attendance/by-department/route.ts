@@ -35,8 +35,8 @@ export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const date = searchParams.get('date');
 
-  const allUsersData = allUsers();
-  const allAttendance = getAttendance();
+  const allUsersData = await allUsers();
+  const allAttendance = await getAttendance();
 
   // Filter attendance by date if provided
   const filteredAttendance = date

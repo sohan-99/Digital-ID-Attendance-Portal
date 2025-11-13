@@ -9,7 +9,9 @@
     "lint": "eslint",
     "seed": "tsx scripts/seed.ts",
     "create-scanner-admins": "tsx scripts/create-scanner-admins.ts",
-    "create-super-scanner-admin": "tsx scripts/create-super-scanner-admin.ts"
+    "create-super-scanner-admin": "tsx scripts/create-super-scanner-admin.ts",
+    "migrate-to-mongodb": "tsx scripts/migrate-to-mongodb.ts",
+    "create-default-admin": "tsx scripts/create-default-admin.ts"
   },
   "dependencies": {
     "@emotion/react": "^11.13.5",
@@ -24,6 +26,7 @@
     "chart.js": "^4.5.1",
     "jsonwebtoken": "^9.0.2",
     "jsqr": "^1.4.0",
+    "mongodb": "^7.0.0",
     "next": "16.0.1",
     "qrcode": "^1.5.4",
     "react": "19.2.0",

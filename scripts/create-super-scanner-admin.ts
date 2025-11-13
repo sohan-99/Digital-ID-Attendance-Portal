@@ -12,7 +12,7 @@ const superScannerAdmin = {
 async function createSuperScannerAdmin() {
   console.log('🔐 Creating Super Scanner Admin Account...\n');
   
-  const existing = findScannerAdminByUsername(superScannerAdmin.username);
+  const existing = await findScannerAdminByUsername(superScannerAdmin.username);
   
   if (existing) {
     console.log(`⚠️  Super Scanner Admin "${superScannerAdmin.username}" already exists.`);
@@ -22,7 +22,7 @@ async function createSuperScannerAdmin() {
   
   const passwordHash = await bcrypt.hash(superScannerAdmin.password, 10);
   
-  const created = addScannerAdmin({
+  const created = await addScannerAdmin({
     username: superScannerAdmin.username,
     passwordHash,
     location: superScannerAdmin.location,

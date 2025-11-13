@@ -69,28 +69,6 @@ export async function init(): Promise<void> {
   await db.collection(COLLECTIONS.ATTENDANCE).createIndex({ userId: 1 });
   await db.collection(COLLECTIONS.ATTENDANCE).createIndex({ scannedAt: -1 });
   await db.collection(COLLECTIONS.ATTENDANCE).createIndex({ scannerLocation: 1 });
-  
-  // Create default admin if not exists
-  await ensureDefaultAdmin();
-}
-
-// Ensure default admin exists
-async function ensureDefaultAdmin(): Promise<void> {
-  const bcrypt = await import('bcryptjs');
-  const defaultAdminEmail = 'admin@pundra.edu';
-  
-  const existing = await findUserByEmail(defaultAdminEmail);
-  
-  if (!existing) {
-    const passwordHash = await bcrypt.hash('Admin@123', 10);
-    await addUser({
-      name: 'Super Admin',
-      email: defaultAdminEmail,
-      passwordHash,
-      isAdmin: true,
-    });
-    console.log('✅ Default admin account created:', defaultAdminEmail);
-  }
 }
 
 // User functions

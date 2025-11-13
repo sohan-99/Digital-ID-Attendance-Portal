@@ -8,7 +8,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: authResult.error }, { status: authResult.status });
   }
 
-  const rows = getAttendance();
+  const rows = await getAttendance();
   const header = ['user_id', 'name', 'email', 'location', 'scannedAt'];
   const csv = [header.join(',')];
 

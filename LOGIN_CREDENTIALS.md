@@ -1,11 +1,50 @@
 # Login Credentials
 
-## Default Admin Account
+## 🔑 Default Admin Account
 
-After running the seed or create-admin script, use these credentials:
+**Automatically created on system initialization:**
 
 - **Email:** `admin@pundra.edu`
 - **Password:** `Admin@123`
+
+### Features:
+- ✅ Full administrative access
+- ✅ Manage users and attendance
+- ✅ Access admin dashboard at `/admin`
+- ✅ Auto-login as super scanner admin at `/scanner`
+- ✅ View statistics and reports
+- ✅ Export attendance data
+
+## 🌟 Super Scanner Admin
+
+For dedicated scanner operations at `/scanner-login`:
+
+- **Username:** `super_scanner`
+- **Password:** `SuperScanner@2025`
+- **Location:** All Locations
+
+### Features:
+- ✅ Access all scanner locations (Campus, Library, Event)
+- ✅ Flexible location switching
+- ✅ Scanner dashboard at `/scanner-dashboard`
+- ✅ Real-time attendance tracking
+
+## 📍 Location-Specific Scanner Admins
+
+### Campus Scanner
+- **Username:** `campus_scanner`
+- **Password:** `Campus@2025`
+- **Location:** Campus only
+
+### Library Scanner
+- **Username:** `library_scanner`
+- **Password:** `Library@2025`
+- **Location:** Library only
+
+### Event Scanner
+- **Username:** `event_scanner`
+- **Password:** `Event@2025`
+- **Location:** Event only
 
 ## Default Student Accounts
 

@@ -11,7 +11,7 @@ export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const date = searchParams.get('date');
 
-  const rows = getAttendance();
+  const rows = await getAttendance();
   
   if (!date) {
     return NextResponse.json({ rows });
