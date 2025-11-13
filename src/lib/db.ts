@@ -24,9 +24,10 @@ interface ScannerAdmin {
   id: number;
   username: string;
   passwordHash: string;
-  location: 'Campus' | 'Library' | 'Event';
+  location: 'Campus' | 'Library' | 'Event' | 'All';
   name: string;
   createdAt: string;
+  isSuperAdmin?: boolean; // Super admin can access all locations
 }
 
 interface Attendance {
@@ -242,8 +243,9 @@ export function recentCounts(days = 7): Array<{ day: string; cnt: number }> {
 export function addScannerAdmin(data: {
   username: string;
   passwordHash: string;
-  location: 'Campus' | 'Library' | 'Event';
+  location: 'Campus' | 'Library' | 'Event' | 'All';
   name: string;
+  isSuperAdmin?: boolean;
 }): ScannerAdmin {
   const db = load();
   const id = db.nextScannerAdminId++;
@@ -254,6 +256,7 @@ export function addScannerAdmin(data: {
     location: data.location,
     name: data.name,
     createdAt: new Date().toISOString(),
+    isSuperAdmin: data.isSuperAdmin || false,
   };
   db.scannerAdmins.push(scannerAdmin);
   save(db);

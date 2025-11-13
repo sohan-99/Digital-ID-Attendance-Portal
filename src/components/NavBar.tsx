@@ -37,35 +37,16 @@ interface User {
 
 export default function NavBar() {
   const pathname = usePathname();
-  const [user, setUser] = useState<User | null>(() => {
-    // Initialize user state from localStorage on mount
-    try {
-      const raw = localStorage.getItem('pundra_user');
-      if (raw) {
-        return JSON.parse(raw);
-      }
-    } catch (e) {
-      console.error('Error loading user data:', e);
-    }
-    return null;
-  });
-  const [profilePicture, setProfilePicture] = useState<string | null>(() => {
-    // Initialize profile picture from localStorage on mount
-    try {
-      const raw = localStorage.getItem('pundra_user');
-      if (raw) {
-        const userData = JSON.parse(raw);
-        return userData.profilePicture || null;
-      }
-    } catch (e) {
-      console.error('Error loading profile picture:', e);
-    }
-    return null;
-  });
+  const [mounted, setMounted] = useState(false);
+  const [user, setUser] = useState<User | null>(null);
+  const [profilePicture, setProfilePicture] = useState<string | null>(null);
   const [anchorElNav, setAnchorElNav] = useState<null | HTMLElement>(null);
   const [anchorElUser, setAnchorElUser] = useState<null | HTMLElement>(null);
 
   useEffect(() => {
+    // Mark as mounted to prevent hydration mismatch
+    setMounted(true);
+
     // Function to check and update user from localStorage and API
     const checkAndUpdateUser = () => {
       const token = localStorage.getItem('pundra_token');
@@ -153,12 +134,13 @@ export default function NavBar() {
   };
 
   // Dynamic navigation items - Hide Home when on home page, Scanner only for admins
-  const navItems = [
+  // Only compute after component is mounted to avoid hydration mismatch
+  const navItems = mounted ? [
     { label: 'Home', href: '/', icon: <HomeIcon />, show: pathname !== '/' },
     { label: 'Scanner', href: '/scanner', icon: <ScannerIcon />, show: !!user && user.isAdmin },
     { label: 'Profile', href: '/profile', icon: <PersonIcon />, show: !!user },
     { label: 'Admin', href: '/admin', icon: <AdminIcon />, show: !!user && user.isAdmin },
-  ].filter(item => item.show);
+  ].filter(item => item.show) : [];
 
   return (
     <AppBar position="sticky" color="default" elevation={2} sx={{ bgcolor: 'background.paper' }}>
@@ -266,7 +248,7 @@ export default function NavBar() {
 
           {/* User Menu */}
           <Box sx={{ flexGrow: 0 }}>
-            {user ? (
+            {mounted && user ? (
               <>
                 <Tooltip title="Account settings">
                   <IconButton onClick={handleOpenUserMenu} sx={{ p: 0 }}>
@@ -360,7 +342,7 @@ export default function NavBar() {
                   </MenuItem>
                 </Menu>
               </>
-            ) : pathname !== '/login' && pathname !== '/register' && pathname !== '/admin-login' && (
+            ) : mounted && pathname !== '/login' && pathname !== '/register' && pathname !== '/admin-login' && (
               <Link href="/login" style={{ textDecoration: 'none' }}>
                 <Button variant="contained" color="primary" size="medium">
                   Login

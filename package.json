@@ -8,7 +8,8 @@
     "start": "next start",
     "lint": "eslint",
     "seed": "tsx scripts/seed.ts",
-    "create-scanner-admins": "tsx scripts/create-scanner-admins.ts"
+    "create-scanner-admins": "tsx scripts/create-scanner-admins.ts",
+    "create-super-scanner-admin": "tsx scripts/create-super-scanner-admin.ts"
   },
   "dependencies": {
     "@emotion/react": "^11.13.5",

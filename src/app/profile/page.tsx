@@ -84,16 +84,21 @@ export default function Profile() {
 
   useEffect(() => {
     const t = localStorage.getItem('pundra_token');
+    console.log('[PROFILE] Token from localStorage:', t ? `${t.substring(0, 20)}...` : 'null');
+    
     if (!t) {
+      console.log('[PROFILE] No token found, redirecting to login');
       window.location.href = '/login';
       return;
     }
 
     (async () => {
       try {
+        console.log('[PROFILE] Fetching user data...');
         const me = await axios.get('http://localhost:3000/api/users/me', {
           headers: { Authorization: `Bearer ${t}` },
         });
+        console.log('[PROFILE] User data received:', me.data.user);
         setUser(me.data.user);
 
         const q = await axios.get(`http://localhost:3000/api/users/${me.data.user.id}/qrcode-token`, {
@@ -110,10 +115,29 @@ export default function Profile() {
       } catch (e: unknown) {
         if (axios.isAxiosError(e)) {
           const data = e.response?.data as { error?: string } | undefined;
-          setErr(data?.error || e.message || 'Failed to load');
+          const errorMsg = data?.error || e.message || 'Failed to load';
+          
+          console.log('[PROFILE] Error:', {
+            status: e.response?.status,
+            error: errorMsg,
+            data: e.response?.data
+          });
+          
+          // If unauthorized (401), clear token and redirect to login
+          if (e.response?.status === 401) {
+            console.log('[PROFILE] Unauthorized, clearing localStorage and redirecting');
+            localStorage.removeItem('pundra_token');
+            localStorage.removeItem('pundra_user');
+            window.location.href = '/login?error=session_expired';
+            return;
+          }
+          
+          setErr(errorMsg);
         } else if (e instanceof Error) {
+          console.log('[PROFILE] Error:', e.message);
           setErr(e.message);
         } else {
+          console.log('[PROFILE] Unknown error:', e);
           setErr('Failed to load');
         }
       } finally {
@@ -158,6 +182,15 @@ export default function Profile() {
           console.error('Upload error:', e);
           if (axios.isAxiosError(e)) {
             const data = e.response?.data as { error?: string } | undefined;
+            
+            // If unauthorized (401), clear token and redirect to login
+            if (e.response?.status === 401) {
+              localStorage.removeItem('pundra_token');
+              localStorage.removeItem('pundra_user');
+              window.location.href = '/login?error=session_expired';
+              return;
+            }
+            
             setPictureError(data?.error || e.message || 'Failed to upload picture');
           } else if (e instanceof Error) {
             setPictureError(e.message);

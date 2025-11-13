@@ -89,6 +89,7 @@ interface AttendanceRecord {
   id: number;
   userId: number;
   location: string;
+  scannerLocation?: string;
   scannedAt: string;
   user?: User;
 }
@@ -1020,7 +1021,7 @@ export default function AdminPage() {
                       <TableRow key={record.id}>
                         <TableCell>{record.id}</TableCell>
                         <TableCell>{record.user?.name || `User ${record.userId}`}</TableCell>
-                        <TableCell>{record.location}</TableCell>
+                        <TableCell>{record.scannerLocation || record.location}</TableCell>
                         <TableCell>{new Date(record.scannedAt).toLocaleTimeString()}</TableCell>
                       </TableRow>
                     ))}

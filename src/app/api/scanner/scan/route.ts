@@ -2,13 +2,15 @@ import { NextRequest, NextResponse } from 'next/server';
 import jwt from 'jsonwebtoken';
 import { findUserById, addAttendance } from '@/lib/db';
 
-const JWT_SECRET = process.env.JWT_SECRET || 'your-scanner-secret-key-change-in-production';
+// IMPORTANT: Use the same JWT_SECRET as in /lib/auth.ts
+const JWT_SECRET = process.env.JWT_SECRET || 'dev_secret_change_me';
 
 interface ScannerTokenPayload {
   scannerAdminId: number;
   username: string;
   location: string;
   role: string;
+  isSuperAdmin?: boolean;
 }
 
 function verifyScannerToken(token: string): ScannerTokenPayload | null {
@@ -44,9 +46,9 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Get QR code token from request body
+    // Get QR code token and optional location from request body
     const body = await req.json();
-    const { qrcodeToken } = body;
+    const { qrcodeToken, location: requestedLocation } = body;
 
     if (!qrcodeToken) {
       return NextResponse.json(
@@ -54,6 +56,12 @@ export async function POST(req: NextRequest) {
         { status: 400 }
       );
     }
+
+    // Determine the scanning location
+    // Super admins can specify location, regular scanner admins use their assigned location
+    const scanLocation = (scannerData.isSuperAdmin || scannerData.location === 'All') && requestedLocation
+      ? requestedLocation
+      : scannerData.location;
 
     // Verify QR code token and find user
     let userId: number;
@@ -85,13 +93,15 @@ export async function POST(req: NextRequest) {
     }
 
     // Quick duplicate check (optimized - only last 5 minutes)
+    // Check both location and scannerLocation for compatibility
     const { getAttendance } = await import('@/lib/db');
     const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
     
     const recentAttendance = getAttendance({ userId });
     const recentScan = recentAttendance.find(att => {
       const scannedAt = new Date(att.scannedAt);
-      return scannedAt > fiveMinutesAgo && att.scannerLocation === scannerData.location;
+      const attLocation = att.scannerLocation || att.location;
+      return scannedAt > fiveMinutesAgo && attLocation === scanLocation;
     });
 
     if (recentScan) {
@@ -104,12 +114,12 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Record attendance (fast write)
+    // Record attendance (fast write) - save location in BOTH fields for cross-compatibility
     const attendance = addAttendance({
       userId,
-      location: scannerData.location,
+      location: scanLocation,
       scannedBy: scannerData.scannerAdminId,
-      scannerLocation: scannerData.location,
+      scannerLocation: scanLocation,
       scannedAt: new Date(),
     });
 
@@ -125,7 +135,7 @@ export async function POST(req: NextRequest) {
         id: attendance.id,
         scannedAt: attendance.scannedAt,
       },
-      location: scannerData.location,
+      location: scanLocation,
     });
   } catch (error) {
     console.error('Scanner scan error:', error);

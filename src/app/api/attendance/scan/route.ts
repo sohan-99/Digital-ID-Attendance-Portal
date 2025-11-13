@@ -45,12 +45,14 @@ export async function POST(request: NextRequest) {
     }
 
     // Quick duplicate check (optimized - only last 5 minutes)
+    // Check both location and scannerLocation for compatibility
     const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
     const recentAttendance = getAttendance({ userId });
     
     const recentScan = recentAttendance.find(att => {
       const scannedAt = new Date(att.scannedAt);
-      return scannedAt > fiveMinutesAgo && att.location === location;
+      const attLocation = att.scannerLocation || att.location;
+      return scannedAt > fiveMinutesAgo && attLocation === location;
     });
 
     if (recentScan) {
@@ -60,10 +62,12 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Record attendance
+    // Record attendance - save location in BOTH fields for cross-compatibility
     const attendance = addAttendance({
       userId: user.id,
       location: location || null,
+      scannedBy: scanningUser.id,
+      scannerLocation: location || null,
       scannedAt: new Date(),
     });
 

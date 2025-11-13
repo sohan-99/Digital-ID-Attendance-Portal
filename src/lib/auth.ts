@@ -51,17 +51,28 @@ export interface AuthRequest extends NextRequest {
 
 export function getAuthUser(request: NextRequest): (UserPayload & { isAdmin: boolean }) | null {
   const auth = request.headers.get('authorization');
-  if (!auth) return null;
+  if (!auth) {
+    console.log('[AUTH] No authorization header');
+    return null;
+  }
   
   const parts = auth.split(' ');
-  if (parts.length !== 2 || parts[0] !== 'Bearer') return null;
+  if (parts.length !== 2 || parts[0] !== 'Bearer') {
+    console.log('[AUTH] Invalid authorization format');
+    return null;
+  }
   
   const token = parts[1];
   try {
     const payload = verifyToken(token);
     const user = findUserById(payload.id);
+    if (!user) {
+      console.log('[AUTH] User not found for id:', payload.id);
+      return null;
+    }
     return { ...payload, isAdmin: user ? user.isAdmin : false };
-  } catch {
+  } catch (error) {
+    console.log('[AUTH] Token verification failed:', error instanceof Error ? error.message : 'Unknown error');
     return null;
   }
 }

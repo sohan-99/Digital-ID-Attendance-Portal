@@ -44,6 +44,18 @@ export default function LoginPage() {
     }
     return false;
   });
+
+  // Check for session expired message
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      if (params.get('error') === 'session_expired') {
+        setErr('Your session has expired. Please login again.');
+        // Remove the error parameter from URL
+        window.history.replaceState({}, '', window.location.pathname);
+      }
+    }
+  }, []);
   const emailRef = useRef<HTMLInputElement>(null);
   const passwordRef = useRef<HTMLInputElement>(null);
 
@@ -95,8 +107,21 @@ export default function LoginPage() {
     setErr(null);
     try {
       const res = await axios.post('http://localhost:3000/api/auth/login', { email, password });
+      
+      // Ensure we have valid data before storing
+      if (!res.data.token || !res.data.user) {
+        throw new Error('Invalid response from server');
+      }
+      
+      // Store token and user data
       localStorage.setItem('pundra_token', res.data.token);
       localStorage.setItem('pundra_user', JSON.stringify(res.data.user));
+      
+      // Verify the token was stored correctly
+      const storedToken = localStorage.getItem('pundra_token');
+      if (!storedToken || storedToken !== res.data.token) {
+        throw new Error('Failed to store authentication token');
+      }
       
       // Dispatch custom event to notify NavBar of auth change
       window.dispatchEvent(new Event('authChange'));
@@ -123,12 +148,21 @@ export default function LoginPage() {
         // Ignore credential API errors
       }
       
+      // Use a small delay to ensure localStorage is written
+      await new Promise(resolve => setTimeout(resolve, 100));
+      
       if (res.data.user && res.data.user.isAdmin) window.location.href = '/admin';
       else window.location.href = '/profile';
     } catch (error: unknown) {
       if (axios.isAxiosError(error)) {
-        const data = error.response?.data as { error?: string } | undefined;
-        setErr(data?.error || 'Login failed');
+        const data = error.response?.data as { error?: string; hint?: string } | undefined;
+        let errorMsg = data?.error || 'Login failed';
+        if (data?.hint) {
+          errorMsg += ` (${data.hint})`;
+        }
+        setErr(errorMsg);
+      } else if (error instanceof Error) {
+        setErr(error.message);
       } else {
         setErr('Login failed');
       }
@@ -247,11 +281,14 @@ export default function LoginPage() {
           </Divider>
 
           <Box sx={{ textAlign: 'center' }}>
-            <Link href="/register" passHref legacyBehavior>
-              <MuiLink underline="hover" sx={{ fontSize: '0.95rem' }}>
-                Create new account
-              </MuiLink>
-            </Link>
+            <MuiLink 
+              component={Link} 
+              href="/register" 
+              underline="hover" 
+              sx={{ fontSize: '0.95rem' }}
+            >
+              Create new account
+            </MuiLink>
           </Box>
         </Paper>
       </Box>

@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import jwt from 'jsonwebtoken';
 import { getTodayAttendanceByLocation, getAttendanceByLocation } from '@/lib/db';
 
-const JWT_SECRET = process.env.JWT_SECRET || 'your-scanner-secret-key-change-in-production';
+// IMPORTANT: Use the same JWT_SECRET as in /lib/auth.ts
+const JWT_SECRET = process.env.JWT_SECRET || 'dev_secret_change_me';
 
 interface ScannerTokenPayload {
   scannerAdminId: number;

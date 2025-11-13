@@ -31,6 +31,7 @@ import {
 
 // Scanner locations configuration
 const scannerLocations = [
+  { value: 'All', label: '🌟 All Locations', color: '#9c27b0' },
   { value: 'Campus', label: '🏫 Campus', color: '#1976d2' },
   { value: 'Library', label: '📚 Library', color: '#2e7d32' },
   { value: 'Event', label: '🎉 Event', color: '#ed6c02' },
@@ -46,6 +47,7 @@ export default function Scanner() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
   const [scannerToken, setScannerToken] = useState<string | null>(null);
+  const [isSuperAdmin, setIsSuperAdmin] = useState(false);
 
   const [toast, setToast] = useState({ 
     visible: false, 
@@ -65,54 +67,82 @@ export default function Scanner() {
 
   // Authentication check
   useEffect(() => {
-    // First check if scanner admin is logged in
-    const scannerTokenValue = localStorage.getItem('scanner_token');
-    const scannerAdminStr = localStorage.getItem('scanner_admin');
-    
-    if (scannerTokenValue && scannerAdminStr) {
-      try {
-        const scannerAdmin = JSON.parse(scannerAdminStr);
-        // Auto-select location based on scanner admin
-        setSelectedLocation(scannerAdmin.location || 'Campus');
-        setScannerToken(scannerTokenValue);
-        setIsAuthenticated(true);
-        setIsAdmin(true);
-        setLoading(false);
-        return;
-      } catch (e) {
-        console.error('Error parsing scanner admin data:', e);
-      }
-    }
-
-    // Fallback to regular admin check
-    const token = localStorage.getItem('pundra_token');
-    if (!token) {
-      window.location.href = '/login';
-      return;
-    }
-
-    const userStr = localStorage.getItem('pundra_user');
-    if (!userStr) {
-      window.location.href = '/login';
-      return;
-    }
-
-    try {
-      const user = JSON.parse(userStr);
+    const checkAuth = async () => {
+      // First check if scanner admin is logged in
+      const scannerTokenValue = localStorage.getItem('scanner_token');
+      const scannerAdminStr = localStorage.getItem('scanner_admin');
       
-      if (!user.isAdmin) {
-        setMsg('Access denied. Scanner is only available for administrators.');
-        setTimeout(() => window.location.href = '/', 2000);
-        return;
+      if (scannerTokenValue && scannerAdminStr) {
+        try {
+          const scannerAdmin = JSON.parse(scannerAdminStr);
+          // Auto-select location based on scanner admin
+          // For super admins (location: 'All'), default to Campus
+          setSelectedLocation(scannerAdmin.location === 'All' ? 'Campus' : scannerAdmin.location || 'Campus');
+          setScannerToken(scannerTokenValue);
+          setIsAuthenticated(true);
+          setIsAdmin(true);
+          setIsSuperAdmin(scannerAdmin.isSuperAdmin || scannerAdmin.location === 'All');
+          setLoading(false);
+          return;
+        } catch (e) {
+          console.error('Error parsing scanner admin data:', e);
+        }
       }
 
-      setIsAdmin(true);
-      setIsAuthenticated(true);
-      setLoading(false);
-    } catch (e) {
-      console.error('Error parsing user data:', e);
-      window.location.href = '/login';
-    }
+      // Check if regular admin is logged in
+      const token = localStorage.getItem('pundra_token');
+      const userStr = localStorage.getItem('pundra_user');
+      
+      if (token && userStr) {
+        try {
+          const user = JSON.parse(userStr);
+          
+          if (!user.isAdmin) {
+            setMsg('Access denied. Scanner is only available for administrators.');
+            setTimeout(() => window.location.href = '/', 2000);
+            return;
+          }
+
+          // Regular admin accessing scanner - auto-login as super scanner admin
+          try {
+            const response = await axios.post('/api/scanner/auth/login', {
+              username: 'super_scanner',
+              password: 'SuperScanner@2025',
+              location: 'Campus', // Default location for super admin
+            });
+
+            // Save super scanner admin session
+            localStorage.setItem('scanner_token', response.data.token);
+            localStorage.setItem('scanner_admin', JSON.stringify(response.data.scannerAdmin));
+            
+            setScannerToken(response.data.token);
+            setSelectedLocation('Campus');
+            setIsAuthenticated(true);
+            setIsAdmin(true);
+            setIsSuperAdmin(true);
+            setLoading(false);
+            
+            setMsg('Logged in as Super Scanner Admin - You can scan at all locations');
+            return;
+          } catch (autoLoginError) {
+            console.error('Auto-login as super scanner admin failed:', autoLoginError);
+            // Fall back to regular admin access
+            setIsAdmin(true);
+            setIsAuthenticated(true);
+            setLoading(false);
+          }
+        } catch (e) {
+          console.error('Error parsing user data:', e);
+          window.location.href = '/login';
+          return;
+        }
+      } else {
+        // No authentication found
+        window.location.href = '/login';
+      }
+    };
+
+    checkAuth();
   }, []);
 
 
@@ -136,6 +166,14 @@ export default function Scanner() {
 
     listCameras();
   }, []);
+
+  // Reset last scan when location changes to allow re-scanning at different location
+  useEffect(() => {
+    lastScanRef.current = null;
+    if (running) {
+      setMsg(`Location changed to ${selectedLocation} - Ready to scan`);
+    }
+  }, [selectedLocation, running]);
 
 
   async function startScanning(deviceId: string) {
@@ -276,9 +314,12 @@ export default function Scanner() {
         ? '/api/scanner/scan'
         : '/api/attendance/scan';
 
+      // If "All" is selected, default to Campus for actual scanning
+      const actualLocation = selectedLocation === 'All' ? 'Campus' : selectedLocation;
+
       const payload = scannerToken
-        ? { qrcodeToken: qrData } // Scanner API expects qrcodeToken
-        : { token: qrData, location: selectedLocation }; // Regular API expects token and location
+        ? { qrcodeToken: qrData, location: actualLocation } // Scanner API expects qrcodeToken and location
+        : { token: qrData, location: actualLocation }; // Regular API expects token and location
 
       const response = await axios.post(
         apiUrl,
@@ -291,19 +332,42 @@ export default function Scanner() {
 
       const userName = response.data?.user?.name || 'Student';
       setMsg(`✓ Success! ${userName} checked in`);
-      showToast(`✓ ${userName} checked in at ${selectedLocation}!`, 'success', true);
+      showToast(`✓ ${userName} checked in at ${actualLocation}!`, 'success', true);
+      
+      // Stop scanner immediately after successful attendance
+      stopScanning();
       
       // Reset for next scan after shorter delay
       setTimeout(() => {
         lastScanRef.current = null;
-        setMsg('Ready for next scan');
+        setMsg('Scanner stopped - Click Start to scan again');
       }, 1200);
     } catch (e: unknown) {
       console.error('Verification error', e);
 
       let errorMessage = 'Verification failed';
+      let isDuplicateScan = false;
       
       if (axios.isAxiosError(e)) {
+        // If unauthorized (401), clear tokens and redirect to appropriate login
+        if (e.response?.status === 401) {
+          if (scannerToken) {
+            localStorage.removeItem('scanner_token');
+            localStorage.removeItem('scanner_admin');
+            window.location.href = '/scanner-login?error=session_expired';
+          } else {
+            localStorage.removeItem('pundra_token');
+            localStorage.removeItem('pundra_user');
+            window.location.href = '/login?error=session_expired';
+          }
+          return;
+        }
+        
+        // Check if this is a duplicate scan (409 Conflict)
+        if (e.response?.status === 409) {
+          isDuplicateScan = true;
+        }
+        
         const data = e.response?.data as { error?: string } | undefined;
         errorMessage = data?.error ?? e.message ?? errorMessage;
       } else if (e instanceof Error) {
@@ -312,6 +376,14 @@ export default function Scanner() {
 
       setMsg(`✗ ${errorMessage}`);
       showToast(errorMessage, 'error');
+      
+      // Stop scanner if it's a duplicate scan
+      if (isDuplicateScan) {
+        stopScanning();
+        setTimeout(() => {
+          setMsg('Scanner stopped - Already scanned recently');
+        }, 1200);
+      }
       
       // Reset for retry
       lastScanRef.current = null;
@@ -438,37 +510,44 @@ export default function Scanner() {
             <Stack spacing={3}>
               
               {/* Location Selection */}
-              <FormControl fullWidth>
-                <InputLabel id="location-select-label">Scanner Location</InputLabel>
-                <Select
-                  labelId="location-select-label"
-                  value={selectedLocation}
-                  label="Scanner Location"
-                  onChange={(e) => setSelectedLocation(e.target.value)}
-                  disabled={running}
-                  startAdornment={
-                    <Box sx={{ display: 'flex', alignItems: 'center', mr: 1 }}>
-                      {scannerLocations.find(loc => loc.value === selectedLocation)?.label.split(' ')[0] || '📍'}
-                    </Box>
-                  }
-                >
-                  {scannerLocations.map((location) => (
-                    <MenuItem key={location.value} value={location.value}>
-                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                        <Box
-                          sx={{
-                            width: 12,
-                            height: 12,
-                            borderRadius: '50%',
-                            bgcolor: location.color,
-                          }}
-                        />
-                        {location.label}
+              <Box>
+                <FormControl fullWidth>
+                  <InputLabel id="location-select-label">Scanner Location</InputLabel>
+                  <Select
+                    labelId="location-select-label"
+                    value={selectedLocation}
+                    label="Scanner Location"
+                    onChange={(e) => setSelectedLocation(e.target.value)}
+                    disabled={running || (!!scannerToken && !isSuperAdmin)}
+                    startAdornment={
+                      <Box sx={{ display: 'flex', alignItems: 'center', mr: 1 }}>
+                        {scannerLocations.find(loc => loc.value === selectedLocation)?.label.split(' ')[0] || '📍'}
                       </Box>
-                    </MenuItem>
-                  ))}
-                </Select>
-              </FormControl>
+                    }
+                  >
+                    {scannerLocations.map((location) => (
+                      <MenuItem key={location.value} value={location.value}>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                          <Box
+                            sx={{
+                              width: 12,
+                              height: 12,
+                              borderRadius: '50%',
+                              bgcolor: location.color,
+                            }}
+                          />
+                          {location.label}
+                        </Box>
+                      </MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+                {!isSuperAdmin && !!scannerToken && (
+                  <Typography variant="caption" color="text.secondary" sx={{ mt: 0.5, display: 'block', ml: 1.75 }}>
+                    Location locked to your assigned area
+                  </Typography>
+                )}
+              </Box>
 
               {/* Camera Selection */}
               <FormControl fullWidth>
@@ -554,10 +633,10 @@ export default function Scanner() {
 
               {/* Location Status */}
               <Alert 
-                severity="info" 
+                severity={isSuperAdmin ? "success" : "info"}
                 icon={
                   <Box sx={{ fontSize: '1.2rem' }}>
-                    {scannerLocations.find(loc => loc.value === selectedLocation)?.label.split(' ')[0] || '📍'}
+                    {isSuperAdmin ? '🌟' : scannerLocations.find(loc => loc.value === selectedLocation)?.label.split(' ')[0] || '📍'}
                   </Box>
                 }
                 sx={{ 
@@ -566,11 +645,16 @@ export default function Scanner() {
                 }}
               >
                 <Typography variant="body2">
-                  <strong>Active Location:</strong> {selectedLocation}
-                  {scannerToken && ' (Scanner Admin Mode)'}
+                  <strong>Active Location:</strong> {selectedLocation === 'All' ? 'All Locations' : selectedLocation}
+                  {isSuperAdmin && ' (Super Scanner Admin)'}
+                  {scannerToken && !isSuperAdmin && ' (Scanner Admin Mode)'}
                 </Typography>
                 <Typography variant="caption" color="text.secondary">
-                  All scans will be recorded at this location
+                  {selectedLocation === 'All'
+                    ? 'Scans will be recorded at Campus (default location)'
+                    : isSuperAdmin 
+                      ? 'You have access to all locations - change location anytime'
+                      : 'All scans will be recorded at this location'}
                 </Typography>
               </Alert>
 

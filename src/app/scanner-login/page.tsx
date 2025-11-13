@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import axios from 'axios';
 import {
@@ -27,6 +27,7 @@ import {
 } from '@mui/icons-material';
 
 const locations = [
+  { value: 'All', label: '🌟 All Locations', color: '#9c27b0' },
   { value: 'Campus', label: '🏫 Campus', color: '#1976d2' },
   { value: 'Library', label: '📚 Library', color: '#2e7d32' },
   { value: 'Event', label: '🎉 Event', color: '#ed6c02' },
@@ -40,6 +41,18 @@ export default function ScannerLoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+
+  // Check for session expired message
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      if (params.get('error') === 'session_expired') {
+        setError('Your session has expired. Please login again.');
+        // Remove the error parameter from URL
+        window.history.replaceState({}, '', window.location.pathname);
+      }
+    }
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
