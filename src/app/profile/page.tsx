@@ -25,6 +25,7 @@ import {
   IconButton,
   Tooltip,
   Container,
+  TextField,
 } from '@mui/material';
 import {
   Download as DownloadIcon,
@@ -64,6 +65,7 @@ interface User {
   batch?: string;
   session?: string;
   bloodGroup?: string;
+  emailVerified?: boolean;
 }
 
 interface AttendanceRecord {
@@ -83,6 +85,11 @@ export default function Profile() {
   const [pictureError, setPictureError] = useState('');
   const [behaviorData, setBehaviorData] = useState<any>(null);
   const [loadingBehavior, setLoadingBehavior] = useState(false);
+  const [otp, setOtp] = useState('');
+  const [otpError, setOtpError] = useState('');
+  const [otpSuccess, setOtpSuccess] = useState('');
+  const [verifyingOtp, setVerifyingOtp] = useState(false);
+  const [resendingOtp, setResendingOtp] = useState(false);
 
   useEffect(() => {
     const t = localStorage.getItem('pundra_token');
@@ -103,10 +110,13 @@ export default function Profile() {
         console.log('[PROFILE] User data received:', me.data.user);
         setUser(me.data.user);
 
-        const q = await axios.get(`http://localhost:3000/api/users/${me.data.user.id}/qrcode-token`, {
-          headers: { Authorization: `Bearer ${t}` },
-        });
-        setToken(q.data.qrcodeToken);
+        // Only fetch QR token if email is verified or user is admin
+        if (me.data.user.emailVerified || me.data.user.isAdmin) {
+          const q = await axios.get(`http://localhost:3000/api/users/${me.data.user.id}/qrcode-token`, {
+            headers: { Authorization: `Bearer ${t}` },
+          });
+          setToken(q.data.qrcodeToken);
+        }
 
         // Load attendance
         setLoadingAttendance(true);
@@ -225,6 +235,75 @@ export default function Profile() {
       console.error('Reader error:', error);
       setPictureError('Failed to process image file');
       setUploadingPicture(false);
+    }
+  }
+
+  async function handleVerifyOtp(e: React.FormEvent) {
+    e.preventDefault();
+    setOtpError('');
+    setOtpSuccess('');
+    setVerifyingOtp(true);
+
+    try {
+      const t = localStorage.getItem('pundra_token');
+      const res = await axios.post(
+        'http://localhost:3000/api/auth/verify-otp',
+        { otp },
+        { headers: { Authorization: `Bearer ${t}` } }
+      );
+
+      setOtpSuccess('Email verified successfully! Your QR code is now available.');
+      setOtp('');
+      
+      // Update user state
+      if (user) {
+        const updatedUser = { ...user, emailVerified: true };
+        setUser(updatedUser);
+        localStorage.setItem('pundra_user', JSON.stringify(updatedUser));
+      }
+
+      // Set the QR token
+      setToken(res.data.qrToken);
+      
+      // Reload page after 2 seconds to refresh all data
+      setTimeout(() => {
+        window.location.reload();
+      }, 2000);
+    } catch (error: unknown) {
+      if (axios.isAxiosError(error)) {
+        const data = error.response?.data as { error?: string } | undefined;
+        setOtpError(data?.error || 'Failed to verify OTP');
+      } else {
+        setOtpError('Failed to verify OTP');
+      }
+    } finally {
+      setVerifyingOtp(false);
+    }
+  }
+
+  async function handleResendOtp() {
+    setOtpError('');
+    setOtpSuccess('');
+    setResendingOtp(true);
+
+    try {
+      const t = localStorage.getItem('pundra_token');
+      await axios.post(
+        'http://localhost:3000/api/auth/resend-otp',
+        {},
+        { headers: { Authorization: `Bearer ${t}` } }
+      );
+
+      setOtpSuccess('New OTP sent to your email!');
+    } catch (error: unknown) {
+      if (axios.isAxiosError(error)) {
+        const data = error.response?.data as { error?: string } | undefined;
+        setOtpError(data?.error || 'Failed to resend OTP');
+      } else {
+        setOtpError('Failed to resend OTP');
+      }
+    } finally {
+      setResendingOtp(false);
     }
   }
 
@@ -541,25 +620,78 @@ export default function Profile() {
           </Card>
         )}
 
-        {/* QR Code Card */}
+        {/* QR Code Card or OTP Verification Card */}
         <Card elevation={3}>
           <CardContent sx={{ p: 4 }}>
             <Typography variant="h5" fontWeight={700} gutterBottom>
               Your Digital ID (QR)
             </Typography>
-            <Grid container spacing={3} alignItems="center">
-              <Grid item xs={12} md={6} sx={{ display: 'flex', justifyContent: 'center' }}>
-                <QRCodeDisplay token={token ?? undefined} />
+            
+            {/* Show OTP verification for non-admin users with unverified email */}
+            {!user.isAdmin && !user.emailVerified ? (
+              <Box>
+                <Alert severity="info" sx={{ mb: 3 }}>
+                  Please verify your email to access your QR code. We've sent a verification code to <strong>{user.email}</strong>
+                </Alert>
+                
+                <Box component="form" onSubmit={handleVerifyOtp} sx={{ maxWidth: 500, mx: 'auto' }}>
+                  <Stack spacing={2}>
+                    <TextField
+                      label="Enter OTP"
+                      value={otp}
+                      onChange={(e) => setOtp(e.target.value)}
+                      placeholder="Enter 6-digit code"
+                      required
+                      fullWidth
+                      inputProps={{ maxLength: 6, pattern: '[0-9]*' }}
+                      disabled={verifyingOtp}
+                    />
+                    
+                    {otpError && <Alert severity="error">{otpError}</Alert>}
+                    {otpSuccess && <Alert severity="success">{otpSuccess}</Alert>}
+                    
+                    <Button
+                      type="submit"
+                      variant="contained"
+                      size="large"
+                      fullWidth
+                      disabled={verifyingOtp || otp.length !== 6}
+                    >
+                      {verifyingOtp ? <CircularProgress size={24} /> : 'Verify Email'}
+                    </Button>
+                    
+                    <Button
+                      variant="outlined"
+                      size="medium"
+                      fullWidth
+                      onClick={handleResendOtp}
+                      disabled={resendingOtp}
+                    >
+                      {resendingOtp ? <CircularProgress size={20} /> : 'Resend OTP'}
+                    </Button>
+                    
+                    <Typography variant="caption" color="text.secondary" textAlign="center">
+                      OTP is valid for 15 minutes. If you didn't receive it, check your spam folder or click resend.
+                    </Typography>
+                  </Stack>
+                </Box>
+              </Box>
+            ) : (
+              /* Show QR code for verified users and admins */
+              <Grid container spacing={3} alignItems="center">
+                <Grid item xs={12} md={6} sx={{ display: 'flex', justifyContent: 'center' }}>
+                  <QRCodeDisplay token={token ?? undefined} />
+                </Grid>
+                <Grid item xs={12} md={6}>
+                  <Typography variant="body1" color="text.secondary" paragraph>
+                    Use this QR code for attendance scanning at lecture halls, library, and campus events.
+                  </Typography>
+                  <Button variant="contained" startIcon={<DownloadIcon />} onClick={downloadQR} size="large" fullWidth>
+                    Download QR Code
+                  </Button>
+                </Grid>
               </Grid>
-              <Grid item xs={12} md={6}>
-                <Typography variant="body1" color="text.secondary" paragraph>
-                  Use this QR code for attendance scanning at lecture halls, library, and campus events.
-                </Typography>
-                <Button variant="contained" startIcon={<DownloadIcon />} onClick={downloadQR} size="large" fullWidth>
-                  Download QR Code
-                </Button>
-              </Grid>
-            </Grid>
+            )}
           </CardContent>
         </Card>
 

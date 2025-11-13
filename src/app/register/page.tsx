@@ -85,6 +85,9 @@ export default function RegisterPage() {
       // Dispatch custom event to notify NavBar of auth change
       window.dispatchEvent(new Event('authChange'))
 
+      // Show success message and inform about OTP
+      alert('Registration successful! Please check your email for the verification code (OTP).')
+
       // Redirect to profile
       router.push('/profile')
     } catch (err: unknown) {

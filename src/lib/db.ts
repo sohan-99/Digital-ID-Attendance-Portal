@@ -17,6 +17,10 @@ interface User {
   bloodGroup?: string | null;
   qrToken?: string | null;
   qrTokenExpiry?: string | null;
+  // OTP verification fields
+  emailVerified?: boolean;
+  otp?: string | null;
+  otpExpiry?: Date | null;
   // Scanner admin fields
   isScannerAdmin?: boolean;
   scannerLocation?: 'Campus' | 'Library' | 'Event' | 'All' | null;
@@ -105,6 +109,7 @@ async function ensureDefaultAdmin(): Promise<void> {
       email: defaultAdminEmail,
       passwordHash,
       isAdmin: true,
+      emailVerified: true, // Admins are pre-verified
     });
     console.log('✅ Default admin account created:', defaultAdminEmail);
   }
@@ -123,6 +128,9 @@ export async function addUser(data: {
   batch?: string | null;
   session?: string | null;
   bloodGroup?: string | null;
+  emailVerified?: boolean;
+  otp?: string | null;
+  otpExpiry?: Date | null;
 }): Promise<User> {
   const db = await getDatabase();
   const id = await getNextSequence('userId');
@@ -140,6 +148,9 @@ export async function addUser(data: {
     batch: data.batch || null,
     session: data.session || null,
     bloodGroup: data.bloodGroup || null,
+    emailVerified: data.emailVerified || false,
+    otp: data.otp || null,
+    otpExpiry: data.otpExpiry || null,
   };
   
   await db.collection<User>(COLLECTIONS.USERS).insertOne(user);
@@ -166,6 +177,9 @@ export async function updateUser(
   if (data.bloodGroup !== undefined) updateData.bloodGroup = data.bloodGroup;
   if (data.qrToken !== undefined) updateData.qrToken = data.qrToken;
   if (data.qrTokenExpiry !== undefined) updateData.qrTokenExpiry = data.qrTokenExpiry;
+  if (data.emailVerified !== undefined) updateData.emailVerified = data.emailVerified;
+  if (data.otp !== undefined) updateData.otp = data.otp;
+  if (data.otpExpiry !== undefined) updateData.otpExpiry = data.otpExpiry;
   
   const result = await db.collection<User>(COLLECTIONS.USERS).findOneAndUpdate(
     { id },

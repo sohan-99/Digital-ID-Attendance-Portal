@@ -23,6 +23,11 @@ export async function GET(
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
 
+  // Check if email is verified (skip for admins)
+  if (!user.isAdmin && !user.emailVerified) {
+    return NextResponse.json({ error: 'Email not verified', emailVerified: false }, { status: 403 });
+  }
+
   // Check if user has a valid QR token
   let qrToken = user.qrToken;
   const now = new Date();

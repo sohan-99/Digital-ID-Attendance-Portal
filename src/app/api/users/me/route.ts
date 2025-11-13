@@ -26,6 +26,7 @@ export async function GET(request: NextRequest) {
       batch: user.batch,
       session: user.session,
       bloodGroup: user.bloodGroup,
+      emailVerified: user.emailVerified || false,
     },
   });
 }
