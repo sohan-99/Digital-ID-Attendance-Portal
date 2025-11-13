@@ -104,7 +104,7 @@ export default function Profile() {
     (async () => {
       try {
         console.log('[PROFILE] Fetching user data...');
-        const me = await axios.get('http://localhost:3000/api/users/me', {
+        const me = await axios.get('/api/users/me', {
           headers: { Authorization: `Bearer ${t}` },
         });
         console.log('[PROFILE] User data received:', me.data.user);
@@ -112,7 +112,7 @@ export default function Profile() {
 
         // Only fetch QR token if email is verified or user is admin
         if (me.data.user.emailVerified || me.data.user.isAdmin) {
-          const q = await axios.get(`http://localhost:3000/api/users/${me.data.user.id}/qrcode-token`, {
+          const q = await axios.get(`/api/users/${me.data.user.id}/qrcode-token`, {
             headers: { Authorization: `Bearer ${t}` },
           });
           setToken(q.data.qrcodeToken);
@@ -120,7 +120,7 @@ export default function Profile() {
 
         // Load attendance
         setLoadingAttendance(true);
-        const att = await axios.get(`http://localhost:3000/api/attendance?userId=${me.data.user.id}`, {
+        const att = await axios.get(`/api/attendance?userId=${me.data.user.id}`, {
           headers: { Authorization: `Bearer ${t}` },
         });
         setAttendance(att.data.rows || []);
@@ -128,7 +128,7 @@ export default function Profile() {
         // Load behavior analytics
         setLoadingBehavior(true);
         try {
-          const behavior = await axios.get('http://localhost:3000/api/users/me/behavior', {
+          const behavior = await axios.get('/api/users/me/behavior', {
             headers: { Authorization: `Bearer ${t}` },
           });
           setBehaviorData(behavior.data);
@@ -196,7 +196,7 @@ export default function Profile() {
 
         try {
           const res = await axios.put(
-            'http://localhost:3000/api/users/me/profile-picture',
+            '/api/users/me/profile-picture',
             { profilePicture: dataUrl },
             { headers: { Authorization: `Bearer ${t}` } }
           );
@@ -247,7 +247,7 @@ export default function Profile() {
     try {
       const t = localStorage.getItem('pundra_token');
       const res = await axios.post(
-        'http://localhost:3000/api/auth/verify-otp',
+        '/api/auth/verify-otp',
         { otp },
         { headers: { Authorization: `Bearer ${t}` } }
       );
@@ -289,7 +289,7 @@ export default function Profile() {
     try {
       const t = localStorage.getItem('pundra_token');
       await axios.post(
-        'http://localhost:3000/api/auth/resend-otp',
+        '/api/auth/resend-otp',
         {},
         { headers: { Authorization: `Bearer ${t}` } }
       );

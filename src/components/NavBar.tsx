@@ -64,7 +64,7 @@ export default function NavBar() {
         }
 
         // Then fetch the latest from API
-        axios.get('http://localhost:3000/api/users/me', {
+        axios.get('/api/users/me', {
           headers: { Authorization: `Bearer ${token}` }
         })
         .then(res => {

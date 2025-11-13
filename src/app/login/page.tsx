@@ -106,7 +106,7 @@ export default function LoginPage() {
     e.preventDefault(); 
     setErr(null);
     try {
-      const res = await axios.post('http://localhost:3000/api/auth/login', { email, password });
+      const res = await axios.post('/api/auth/login', { email, password });
       
       // Ensure we have valid data before storing
       if (!res.data.token || !res.data.user) {

@@ -194,7 +194,7 @@ export default function AdminPage() {
     if (!token) return;
 
     axios
-      .get(`http://localhost:3000/api/admin/attendance/daily?days=${days}`, {
+      .get(`/api/admin/attendance/daily?days=${days}`, {
         headers: { Authorization: `Bearer ${token}` },
       })
       .then((res) => {
@@ -213,7 +213,7 @@ export default function AdminPage() {
     if (!token) return;
 
     axios
-      .get('http://localhost:3000/api/admin/behavior-analytics', {
+      .get('/api/admin/behavior-analytics', {
         headers: { Authorization: `Bearer ${token}` },
       })
       .then((res) => {
@@ -227,7 +227,7 @@ export default function AdminPage() {
     if (!token) return;
 
     axios
-      .get('http://localhost:3000/api/admin/scanner-login-logs?limit=50', {
+      .get('/api/admin/scanner-login-logs?limit=50', {
         headers: { Authorization: `Bearer ${token}` },
       })
       .then((res) => {
@@ -242,7 +242,7 @@ export default function AdminPage() {
     if (!token) return;
 
     axios
-      .get('http://localhost:3000/api/admin/attendance/daily?days=30', {
+      .get('/api/admin/attendance/daily?days=30', {
         headers: { Authorization: `Bearer ${token}` },
       })
       .then((res) => {
@@ -261,7 +261,7 @@ export default function AdminPage() {
 
     // Fetch stats
     axios
-      .get('http://localhost:3000/api/admin/stats', {
+      .get('/api/admin/stats', {
         headers: { Authorization: `Bearer ${token}` },
       })
       .then((res) => setStats(res.data))
@@ -271,7 +271,7 @@ export default function AdminPage() {
 
     // Fetch users
     axios
-      .get('http://localhost:3000/api/admin/users', {
+      .get('/api/admin/users', {
         headers: { Authorization: `Bearer ${token}` },
       })
       .then((res) => {
@@ -330,7 +330,7 @@ export default function AdminPage() {
 
     axios
       .post(
-        'http://localhost:3000/api/admin/users',
+        '/api/admin/users',
         { name, email, password, studentId, program, department, batch, session, bloodGroup, isAdmin },
         { headers: { Authorization: `Bearer ${token}` } }
       )
@@ -385,7 +385,7 @@ export default function AdminPage() {
 
     axios
       .put(
-        `http://localhost:3000/api/admin/users/${userId}`,
+        `/api/admin/users/${userId}`,
         { name, email, studentId, program, department, batch, session, bloodGroup, isAdmin },
         { headers: { Authorization: `Bearer ${token}` } }
       )
@@ -418,7 +418,7 @@ export default function AdminPage() {
     if (!confirm(`Delete user ${user.name}?`)) return;
 
     axios
-      .delete(`http://localhost:3000/api/admin/users/${userId}`, {
+      .delete(`/api/admin/users/${userId}`, {
         headers: { Authorization: `Bearer ${token}` },
       })
       .then(() => {
@@ -438,7 +438,7 @@ export default function AdminPage() {
     if (!token) return;
 
     try {
-      const res = await axios.get(`http://localhost:3000/api/users/${userId}/qrcode-token`, {
+      const res = await axios.get(`/api/users/${userId}/qrcode-token`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       const qrToken = res.data.qrcodeToken;
@@ -480,7 +480,7 @@ export default function AdminPage() {
     if (!token) return;
 
     axios
-      .get('http://localhost:3000/api/admin/export-attendance', {
+      .get('/api/admin/export-attendance', {
         headers: { Authorization: `Bearer ${token}` },
         responseType: 'blob',
       })
@@ -503,7 +503,7 @@ export default function AdminPage() {
     if (!token) return;
 
     axios
-      .get('http://localhost:3000/api/admin/attendance/daily?days=90', {
+      .get('/api/admin/attendance/daily?days=90', {
         headers: { Authorization: `Bearer ${token}` },
       })
       .then((res) => {
