@@ -118,7 +118,6 @@ The Scanner Admin System allows dedicated scanner operators at three key locatio
 - `attendance.scannedBy` - ID of scanner admin who recorded attendance
 - `attendance.scannerLocation` - Location where scan occurred
 
-For detailed documentation, see `SCANNER_ADMINS.md` and `SCANNER_QUICK_START.md`.
 
 ## 🔒 Security
 
