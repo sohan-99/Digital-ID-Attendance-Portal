@@ -2,7 +2,7 @@ import fs from 'fs';
 import path from 'path';
 
 const DB_PATH = path.join(process.cwd(), 'data', 'db.json');
-
+// user
 interface User {
   id: number;
   name: string;
@@ -48,7 +48,7 @@ interface Database {
   nextScannerAdminId: number;
   nextAttendanceId: number;
 }
-
+//ensureDataDir
 function ensureDataDir() {
   const dataDir = path.join(process.cwd(), 'data');
   if (!fs.existsSync(dataDir)) {
